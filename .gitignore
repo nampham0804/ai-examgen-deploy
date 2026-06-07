@@ -47,6 +47,7 @@ coverage.xml
 
 # Docker
 docker-compose.override.yml
+.github/workflows/
 
 # Node (frontend)
 node_modules/
