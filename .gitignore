@@ -1,20 +1,67 @@
-# Environment
-.env
-
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
-venv/
-.venv/
-build/
+*.so
 *.egg-info/
+dist/
+build/
+.eggs/
 .pytest_cache/
 .mypy_cache/
 
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
 # OS
 .DS_Store
+Thumbs.db
 
-# AI logs — tracked structure, ignored content
+# Data (never commit large data, keep folder structure)
+data/raw/*
+data/processed/*
+data/vector_store/*
+!data/**/.gitkeep
+*.db
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Test coverage
+htmlcov/
+.coverage
+coverage.xml
+
+# Docker
+docker-compose.override.yml
+
+# Node (frontend)
+node_modules/
+.next/
+out/
+.nuxt/
+
+# Build
+*.pyc
+*.pyo
+
+# AI logs - tracked structure, ignored content
 .ai-log/*.jsonl
+.ai-log/archive/
 .github/workflows/

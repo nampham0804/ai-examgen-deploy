@@ -1,0 +1,11 @@
+{
+  "name": "c2-app-141-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo \"Frontend is not scaffolded yet\"",
+    "build": "echo \"Frontend is not scaffolded yet\"",
+    "test": "echo \"Frontend tests are not configured yet\""
+  }
+}
+

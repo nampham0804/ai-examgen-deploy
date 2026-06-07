@@ -1,100 +1,152 @@
-# Starter Code Template — Cohort 2
+# C2-App-141
 
-Empty starter template for AI20K Build Cohort 2 team repositories. Includes pre-configured AI usage logging hooks for Claude Code, Cursor, Codex, Gemini CLI, Antigravity, and GitHub Copilot.
+Repository for the team AI agent project.
 
-## Structure
+The current codebase is organized for a FastAPI backend, a LangGraph agent,
+an optional frontend application, project documentation, weekly reports, and
+evaluation artifacts.
 
+## Repository Structure
+
+```text
+C2-App-141/
+|-- README.md                 # Project overview and setup guide
+|-- JOURNAL.md                # Team learning journal and decisions
+|-- WORKLOG.md                # Daily task tracking by member
+|-- requirements.txt          # Python backend dependencies
+|-- Dockerfile                # Backend container image
+|-- docker-compose.yml        # Local Docker orchestration
+|-- Makefile                  # Common backend commands
+|-- .env.example              # Environment variable template
+|-- .gitignore                # Git ignore rules
+|
+|-- src/                      # Backend source code: FastAPI + LangGraph
+|   |-- main.py               # FastAPI app entrypoint
+|   |-- config.py             # App settings loaded from environment
+|   |-- api/                  # API routes and dependencies
+|   |-- agents/               # LangGraph agent graph, state, nodes, tools, prompts
+|   |-- services/             # LLM, RAG, embedding, monitoring services
+|   |-- models/               # Pydantic request/response schemas
+|   |-- repositories/         # Database access layer
+|   `-- utils/                # Shared backend utilities
+|
+|-- frontend/                 # Frontend application workspace
+|   |-- package.json          # Frontend package and scripts
+|   |-- src/                  # Frontend source code
+|   |-- public/               # Static frontend assets
+|   `-- README.md             # Frontend-specific notes
+|
+|-- docs/                     # Technical and product documentation
+|   |-- architecture.md       # System architecture overview
+|   |-- architecture_diagram.md
+|   |-- api_spec.md           # API contract and examples
+|   |-- product_requirements.md
+|   |-- deployment.md
+|   `-- guide/                # Original AI20K technical guide reference
+|
+|-- reports/                  # Team deliverable reports
+|   |-- weekly/               # Weekly reports and reusable template
+|   |-- Gate-1/               # Gate 1 report assets and screenshots
+|   |-- evaluation_report.md
+|   `-- final/                # Final report and demo script
+|
+|-- data/                     # Local data folders; contents ignored by Git
+|   |-- raw/                  # Original input data
+|   |-- processed/            # Cleaned or transformed data
+|   `-- vector_store/         # Local vector DB files
+|
+|-- tests/                    # Backend test suite
+|   |-- test_api/
+|   |-- test_agents/
+|   |-- test_services/
+|   `-- conftest.py
+|
+|-- eval/                     # Evaluation assets and outputs
+|   |-- datasets/             # Evaluation datasets
+|   |-- results/              # Evaluation run outputs
+|   `-- metrics.py            # Metric helpers
+|
+|-- presentation/             # Pitch deck and video demo materials
+|-- scripts/                  # Setup and AI logging scripts
+|-- .github/                  # GitHub Actions workflows
+|-- .ai-log/                  # Local AI usage logs; content ignored by Git
+|-- .claude/ .codex/ .cursor/ .gemini/
+|                             # AI tool hook configs
+`-- .agents/                  # Antigravity rules and workflows
 ```
-├── scripts/
-│   ├── _pyrun.sh             # Cross-platform Python launcher (bash)
-│   ├── _pyrun.cmd            # Cross-platform Python launcher (Windows)
-│   ├── setup_hooks.sh        # One-time pre-push hook installer (POSIX)
-│   ├── setup_hooks.ps1       # One-time pre-push hook installer (Windows)
-│   ├── log_hook.py           # AI tool hook handler (Claude / Cursor / Codex / Gemini / Copilot)
-│   ├── log_antigravity.py    # Auto-log hook for Antigravity
-│   ├── log_manual.py         # Manual log for ChatGPT / web tools
-│   └── submit_log.py         # Submits logs on git push
-├── .agents/                  # Antigravity rules + workflows
-├── .claude/  .codex/  .cursor/  .gemini/  .github/hooks/   # Per-tool hook configs
-├── .env.example
-├── JOURNAL.md                # Weekly journal — product journey & learnings
-└── WORKLOG.md                # Technical decisions, task assignments, brainstorming
-```
 
-## Getting Started
+## Backend
 
-### 1. Clone and install pre-push hook
+The backend lives in `src/`.
 
-**Linux / macOS / Git Bash:**
+Important folders:
+
+- `src/api/`: FastAPI routes and dependencies
+- `src/agents/`: LangGraph graph, state, nodes, tools, and prompts
+- `src/services/`: LLM, RAG, embedding, and monitoring services
+- `src/models/`: Pydantic schemas
+- `src/repositories/`: database access layer
+- `src/utils/`: shared utility helpers
+
+Run locally:
+
 ```bash
-git clone <repo-url>
-cd <repo>
-bash scripts/setup_hooks.sh
+pip install -r requirements.txt
+uvicorn src.main:app --reload --port 8000
 ```
 
-**Windows PowerShell:**
-```powershell
-git clone <repo-url>
-cd <repo>
-powershell -ExecutionPolicy Bypass -File scripts\setup_hooks.ps1
+Open API docs:
+
+```text
+http://localhost:8000/docs
 ```
 
-### 2. Configure environment
+## Frontend
+
+Frontend code should be placed in `frontend/`.
+
+This keeps Node.js dependencies, UI source code, and frontend deployment separate
+from the Python backend.
+
+## Reports
+
+Weekly reports are stored in:
+
+```text
+reports/weekly/
+```
+
+Use `reports/weekly/template.md` when creating a new weekly report.
+
+Final deliverables are stored in:
+
+```text
+reports/final/
+presentation/
+eval/
+```
+
+## Documentation
+
+Core project documentation:
+
+- `docs/product_requirements.md`
+- `docs/architecture.md`
+- `docs/api_spec.md`
+- `docs/deployment.md`
+
+The original technical guide remains in `docs/guide/` for reference.
+
+## Tests
+
+Run backend tests:
 
 ```bash
-cp .env.example .env       # macOS / Linux / Git Bash
-# copy .env.example .env   # Windows cmd
+pytest tests/ -v
 ```
 
-Fill in `AI_LOG_SERVER` and `AI_LOG_API_KEY` (provided by the course).
+## Environment
 
-### 3. Build your project
+Copy `.env.example` to `.env` and fill in required values such as API keys,
+database connection strings, and deployment settings.
 
-This is an empty starter — pick any language/framework. The hooks are language-agnostic; they only need Python on the host (any of `python3`, `python`, or `py` works).
-
-## Weekly Journal
-
-Update **[JOURNAL.md](./JOURNAL.md)** at the end of every week:
-
-- Features shipped
-- AI tools used and how they helped
-- Hardest problem of the week and how you solved it
-- What you'd do differently
-- Plan for next week
-
-> JOURNAL.md **must be updated** before each PR — it is your learning record for the course.
-
-## Worklog
-
-Update **[WORKLOG.md](./WORKLOG.md)** whenever your team makes a technical decision or changes direction:
-
-- **Technical decisions** — why this approach over alternatives?
-- **Task assignments** — who does what, by when
-- **Brainstorming** — options considered, pros / cons, conclusion
-- **Important bugs** — root cause and fix
-
-## AI Logging
-
-Prompts and tool calls are **automatically logged** when you use any supported AI tool (Claude Code, Cursor, Codex, Gemini, Antigravity, Copilot). No manual steps needed after running `setup_hooks`.
-
-For ChatGPT or other web tools, log manually:
-
-```bash
-# POSIX
-bash scripts/_pyrun.sh scripts/log_manual.py --tool chatgpt --prompt "<what you did>"
-
-# Windows
-scripts\_pyrun.cmd scripts\log_manual.py --tool chatgpt --prompt "<what you did>"
-```
-
-### Python requirements
-
-The hook system needs **one** of: `python3`, `python`, or `py` on PATH.
-
-| OS | Recommended install |
-|---|---|
-| Windows | Python 3 from [python.org](https://www.python.org/downloads/) — installer adds both `python` and `py` to PATH |
-| Ubuntu / Debian | `sudo apt install python3` (already preinstalled on most distros) |
-| macOS | `brew install python3` or use system Python 3 |
-
-The `scripts/_pyrun.*` wrappers detect whichever is available — students do not need to alias `python3` → `python`.
