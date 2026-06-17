@@ -154,7 +154,7 @@ File:
 
 ```text
 frontend/src/api/documents.ts
-frontend/src/pages/AIGeneration/GeneratePage.tsx
+frontend/src/app/pages/AIGeneration.tsx
 ```
 
 `api/documents.ts` nên có:
@@ -526,7 +526,7 @@ Validation:
 File:
 
 ```text
-frontend/src/pages/AIGeneration/GeneratePage.tsx
+frontend/src/app/pages/AIGeneration.tsx
 frontend/src/api/aiGeneration.ts
 frontend/src/api/documents.ts
 ```

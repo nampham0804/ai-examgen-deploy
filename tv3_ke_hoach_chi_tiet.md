@@ -164,7 +164,7 @@ Validation:
 File:
 
 ```text
-frontend/src/pages/Blueprint/BlueprintPage.tsx
+frontend/src/app/pages/ExamBlueprint.tsx
 frontend/src/api/blueprints.ts
 frontend/src/types/exam.ts
 ```
@@ -258,8 +258,8 @@ Response:
     "total_required": 18,
     "details": [
       {
-        "lo_id": 1,
-        "lo_code": "LO1",
+        "learning_outcome_id": 1,
+        "learning_outcome_code": "LO1",
         "question_type": "mcq",
         "easy_required": 5,
         "easy_available": 5,
@@ -464,7 +464,7 @@ Hoặc query list rồi dùng `random.sample()` trong Python.
 File:
 
 ```text
-frontend/src/pages/Exam/ExamGenerator.tsx
+frontend/src/app/pages/ExamGenerator.tsx
 frontend/src/api/exams.ts
 ```
 
@@ -570,7 +570,7 @@ Load exam
 File:
 
 ```text
-frontend/src/pages/Exam/ExamPreview.tsx
+frontend/src/app/pages/ExamPreview.tsx
 frontend/src/api/exams.ts
 ```
 
@@ -819,7 +819,7 @@ return response
 File:
 
 ```text
-frontend/src/pages/Dashboard.tsx
+frontend/src/app/pages/Dashboard.tsx
 frontend/src/api/analytics.ts
 ```
 

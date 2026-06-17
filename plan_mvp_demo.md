@@ -91,13 +91,13 @@
            ▼
 ┌────────────────────────────────────────────────────────────────┐
 │                        AI LAYER                                │
-│           OpenAI API (hoặc Anthropic Claude API)               │
+│           OpenAI API                                           │
 │                                                                │
 │  Input:  LO description + extracted text chunks                │
 │  Output: JSON array of MCQ / essay questions                   │
 │  Format: { question_type, question_text, options?,             │
 │            correct_answer?, suggested_answer?, rubric?,        │
-│            explanation, difficulty, lo_id }                    │
+│            explanation, difficulty, learning_outcome_id }       │
 └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -106,13 +106,13 @@
 | Layer | Công nghệ | Ghi chú |
 |---|---|---|
 | Frontend | React 18 + Vite + TailwindCSS | Không dùng Next.js (quá nặng cho 3 ngày) |
-| UI components | shadcn/ui hoặc Ant Design | Chọn 1, dùng nhất quán |
+| UI components | shadcn/ui style + Radix UI + lucide-react | Dùng thống nhất, không thêm Ant Design/MUI trong MVP |
 | HTTP client | Axios | Base URL = `http://localhost:8000` |
 | Backend | FastAPI + Python 3.11 | Pydantic v2 cho validation |
 | ORM | SQLAlchemy 2.0 + Alembic | Alembic cho migration |
 | Database | PostgreSQL 15 | Docker compose |
 | File extract | PyMuPDF (PDF) + python-docx (DOCX) | |
-| LLM | OpenAI gpt-4o-mini hoặc claude-3-haiku | Rẻ, nhanh, đủ dùng |
+| LLM | OpenAI `gpt-4o-mini` | Rẻ, nhanh, đủ dùng cho MVP; không thêm provider khác trong demo |
 | CORS | FastAPI CORSMiddleware | Allow `localhost:5173` |
 | Dev environment | Docker Compose | DB + pgAdmin |
 
@@ -507,7 +507,7 @@ course_id   : int
 ### 5.4 Review & Question Bank API
 
 ```
-GET  /api/questions                          -- filter: status, course_id, lo_id, question_type, difficulty
+GET  /api/questions                          -- filter: status, course_id, learning_outcome_id, question_type, difficulty
 GET  /api/questions/{id}
 PUT  /api/questions/{id}
 POST /api/questions/{id}/approve
@@ -518,7 +518,7 @@ POST /api/questions/{id}/reject
 ```
 status      : pending_review | approved | rejected  (optional)
 course_id   : int  (optional)
-lo_id       : int  (optional)
+learning_outcome_id : int  (optional)
 difficulty  : easy | medium | hard  (optional)
 question_type: mcq | essay (optional)
 page        : int  (default: 1)
@@ -593,8 +593,8 @@ DELETE /api/blueprints/{id}
     "total_required": 18,
     "details": [
       {
-        "lo_id": 1,
-        "lo_code": "LO1",
+        "learning_outcome_id": 1,
+        "learning_outcome_code": "LO1",
         "easy_required": 5, "easy_available": 5,
         "medium_required": 3, "medium_available": 3,
         "hard_required": 2, "hard_available": 1,
@@ -602,8 +602,8 @@ DELETE /api/blueprints/{id}
         "missing": "Thiếu 1 câu Hard cho LO1"
       },
       {
-        "lo_id": 2,
-        "lo_code": "LO2",
+        "learning_outcome_id": 2,
+        "learning_outcome_code": "LO2",
         "easy_required": 3, "easy_available": 4,
         "medium_required": 4, "medium_available": 4,
         "hard_required": 1, "hard_available": 2,
@@ -654,7 +654,7 @@ GET  /api/exams/{id}/preview
         "options": [...],
         "correct_answer": "B",
         "difficulty": "easy",
-        "lo_code": "LO1"
+        "learning_outcome_code": "LO1"
       }
     ]
   }
@@ -695,40 +695,40 @@ GET /api/analytics/dashboard?course_id={id}
 
 ### 6.1 Cấu trúc repo
 
+**Chuẩn chính thức cho repo hiện tại:** backend nằm ở `src/`, frontend nằm ở `frontend/`. Không tạo thêm thư mục `backend/` mới cho MVP. Sơ đồ dưới đây dùng cấu trúc chuẩn đã chốt trong `team_coding_agreement.md`: mỗi domain có route/schema/model/repository/service riêng.
+
 ```
 ai-examgen/
-├── backend/
-│   ├── app/
-│   │   ├── main.py                    # FastAPI app, CORS, router include
-│   │   ├── database.py                # SQLAlchemy engine + session
-│   │   ├── models.py                  # SQLAlchemy models (TẤT CẢ model ở đây)
-│   │   ├── schemas.py                 # Pydantic schemas (request/response)
-│   │   ├── routers/
-│   │   │   ├── courses.py             # TV1
-│   │   │   ├── learning_outcomes.py   # TV1
-│   │   │   ├── documents.py           # TV2
-│   │   │   ├── ai_generation.py       # TV2
-│   │   │   ├── questions.py           # TV1
-│   │   │   ├── blueprints.py          # TV3
-│   │   │   ├── exams.py               # TV3
-│   │   │   ├── exports.py             # TV3
-│   │   │   └── analytics.py           # TV3
-│   │   ├── services/
-│   │   │   ├── document_service.py    # TV2 — extract text từ file
-│   │   │   ├── ai_service.py          # TV2 — gọi LLM, parse JSON
-│   │   │   ├── exam_service.py        # TV3 — random selection
-│   │   │   └── export_service.py      # TV3 — tạo GIFT file
-│   │   └── core/
-│   │       └── config.py              # Settings (OPENAI_KEY, DB_URL, etc.)
-│   ├── alembic/                       # Migrations
-│   ├── uploads/                       # File upload (gitignore)
-│   ├── exports/                       # Export output (gitignore)
-│   ├── .env                           # Variables (gitignore)
-│   ├── requirements.txt
-│   └── seed.py                        # Seed data script
+├── src/
+│   ├── main.py                        # FastAPI app, CORS, include api router
+│   ├── config.py                      # Settings (OPENAI_KEY, DB_URL, etc.)
+│   ├── api/
+│   │   ├── router.py                  # Router tổng, include route modules
+│   │   └── routes/
+│   │       ├── courses.py             # TV1
+│   │       ├── learning_outcomes.py   # TV1
+│   │       ├── documents.py           # TV2
+│   │       ├── ai_generation.py       # TV2
+│   │       ├── questions.py           # TV1
+│   │       ├── blueprints.py          # TV3
+│   │       ├── exams.py               # TV3
+│   │       ├── exports.py             # TV3
+│   │       └── analytics.py           # TV3
+│   ├── models/                        # SQLAlchemy models theo domain
+│   ├── schemas/                       # Pydantic schemas theo domain
+│   ├── repositories/                  # DB access layer
+│   ├── services/                      # Business logic theo domain
+│   ├── ai/                            # prompt/provider/parser LLM
+│   └── agents/                        # agent workflows sau MVP
 │
 ├── frontend/
 │   ├── src/
+│   │   ├── app/
+│   │   │   ├── App.tsx
+│   │   │   ├── routes.tsx
+│   │   │   ├── components/
+│   │   │   ├── context/
+│   │   │   └── pages/
 │   │   ├── api/
 │   │   │   ├── client.ts              # Axios instance, base URL
 │   │   │   ├── courses.ts             # TV1
@@ -736,29 +736,9 @@ ai-examgen/
 │   │   │   ├── documents.ts           # TV2
 │   │   │   ├── blueprints.ts          # TV3
 │   │   │   └── exams.ts               # TV3
-│   │   ├── pages/
-│   │   │   ├── Dashboard.tsx          # TV3
-│   │   │   ├── Courses/
-│   │   │   │   ├── CourseList.tsx     # TV1
-│   │   │   │   └── CourseForm.tsx     # TV1
-│   │   │   ├── LearningOutcomes/
-│   │   │   │   └── LOList.tsx         # TV1
-│   │   │   ├── AIGeneration/
-│   │   │   │   └── GeneratePage.tsx   # TV2
-│   │   │   ├── Review/
-│   │   │   │   └── ReviewPage.tsx     # TV1
-│   │   │   ├── QuestionBank/
-│   │   │   │   └── QuestionBankPage.tsx # TV1
-│   │   │   ├── Blueprint/
-│   │   │   │   └── BlueprintPage.tsx  # TV3
-│   │   │   └── Exam/
-│   │   │       ├── ExamGenerator.tsx  # TV3
-│   │   │       └── ExamPreview.tsx    # TV3
-│   │   ├── components/
-│   │   │   └── shared/                # Tất cả dùng chung
 │   │   ├── types/
-│   │   │   └── index.ts               # TypeScript interfaces (CHỐT NGÀY 1)
-│   │   ├── App.tsx
+│   │   ├── mocks/
+│   │   ├── utils/
 │   │   └── main.tsx
 │   ├── package.json
 │   └── vite.config.ts
@@ -788,9 +768,9 @@ def get_db():
 # Logic phức tạp (generate exam, export) → đặt trong services/
 ```
 
-- Mọi router file đều import từ `app.models` và `app.schemas`
-- Không tạo model mới ngoài `models.py` — chỉnh sửa 1 file duy nhất
-- Env variables đọc qua `app.core.config` — không hardcode trong router
+- Mọi router file nằm trong `src/api/routes/` và gọi service, không query DB trực tiếp
+- Không gom tất cả model/schema vào một file lớn; dùng `src/models/*.py` và `src/schemas/*.py` theo domain
+- Env variables đọc qua `src/config.py` — không hardcode trong router
 - Tất cả endpoint đều prefix `/api`
 
 #### Frontend
@@ -806,9 +786,9 @@ import { Course, Question } from '@/types';
 // ❌ Sai — không tạo type mới trong component file
 ```
 
-- Không share state giữa các page bằng prop drilling — dùng React Query hoặc useState local
+- Không share state giữa các page bằng prop drilling — dùng context/local state trong MVP; chỉ thêm state library khi team chốt
 - File trong `api/` chỉ chứa hàm gọi API, không chứa logic
-- `types/index.ts` là nguồn duy nhất cho TypeScript interface — ai cần type mới thì thêm vào đây
+- Type dùng chung đặt trong `src/types/*.ts`; `types/index.ts` chỉ dùng để re-export nếu cần
 
 ### 6.3 File `.env` (backend)
 
@@ -900,7 +880,7 @@ export interface ExamQuestion {
   suggested_answer?: string | null;
   grading_rubric?: string | null;
   difficulty: string;
-  lo_code: string;
+  learning_outcome_code: string;
 }
 
 export interface Document {

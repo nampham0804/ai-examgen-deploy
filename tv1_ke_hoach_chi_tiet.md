@@ -233,16 +233,15 @@ Status code nên dùng:
 | Lấy danh sách thành công | `200` |
 | Không tìm thấy course | `404` |
 | Dữ liệu không hợp lệ | `422` |
-| Trùng mã course | `409` hoặc `400` |
-| Xóa thành công | `200` hoặc `204` |
+| Trùng mã course | `409` |
+| Xóa thành công | `200` |
 
 ### 1.7 Cách Thực Hiện Frontend
 
 File chính:
 
 ```text
-frontend/src/pages/Courses/CourseList.tsx
-frontend/src/pages/Courses/CourseForm.tsx
+frontend/src/app/pages/Courses.tsx
 frontend/src/api/courses.ts
 frontend/src/types/course.ts
 ```
@@ -427,8 +426,8 @@ Bấm Add LO
 File nên có:
 
 ```text
-models/course.py hoặc models/learning_outcome.py
-schemas/course.py hoặc schemas/learning_outcome.py
+models/learning_outcome.py
+schemas/learning_outcome.py
 routers/learning_outcomes.py
 ```
 
@@ -454,7 +453,7 @@ Lưu ý:
 File:
 
 ```text
-frontend/src/pages/LearningOutcomes/LOList.tsx
+frontend/src/app/pages/LearningOutcomes.tsx
 frontend/src/api/learningOutcomes.ts
 frontend/src/types/course.ts
 ```
@@ -645,7 +644,7 @@ Validation quan trọng:
 File:
 
 ```text
-frontend/src/pages/Review/ReviewPage.tsx
+frontend/src/app/pages/Review.tsx
 frontend/src/api/questions.ts
 frontend/src/types/question.ts
 ```
@@ -689,7 +688,7 @@ Các thao tác chính:
 | Thao tác | Ý nghĩa | API |
 |---|---|---|
 | List | Xem câu hỏi | `GET /api/questions` |
-| Filter | Lọc câu hỏi | `GET /api/questions?status=&course_id=&lo_id=&question_type=&difficulty=` |
+| Filter | Lọc câu hỏi | `GET /api/questions?status=&course_id=&learning_outcome_id=&question_type=&difficulty=` |
 | Pagination | Phân trang | `page`, `page_size` |
 
 ### 4.2 Vai Trò Trong Toàn Hệ Thống
@@ -720,7 +719,7 @@ Mặc định nên hiển thị `status = approved`.
 ### 4.4 API Contract
 
 ```http
-GET /api/questions?status=approved&course_id={id}&lo_id={id}&question_type={mcq|essay}&difficulty={level}&page=1&page_size=20
+GET /api/questions?status=approved&course_id={id}&learning_outcome_id={id}&question_type={mcq|essay}&difficulty={level}&page=1&page_size=20
 ```
 
 Response:
@@ -759,7 +758,7 @@ Trong `routers/questions.py`, xây query động:
 query = SELECT questions
 if status: filter status
 if course_id: filter course_id
-if lo_id: filter learning_outcome_id
+if learning_outcome_id: filter learning_outcome_id
 if question_type: filter question_type
 if difficulty: filter difficulty
 apply pagination
@@ -777,7 +776,7 @@ Lưu ý:
 File:
 
 ```text
-frontend/src/pages/QuestionBank/QuestionBankPage.tsx
+frontend/src/app/pages/QuestionBank.tsx
 frontend/src/api/questions.ts
 ```
 

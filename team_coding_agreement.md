@@ -327,12 +327,13 @@ src/types/question.ts
 src/types/document.ts
 src/types/exam.ts
 
-src/pages/Courses/
-src/pages/AIGeneration/
-src/pages/Review/
-src/pages/QuestionBank/
-src/pages/Blueprint/
-src/pages/Exam/
+src/app/pages/Courses.tsx
+src/app/pages/AIGeneration.tsx
+src/app/pages/Review.tsx
+src/app/pages/QuestionBank.tsx
+src/app/pages/ExamBlueprint.tsx
+src/app/pages/ExamGenerator.tsx
+src/app/pages/ExamPreview.tsx
 ```
 
 File dễ conflict:
@@ -364,7 +365,7 @@ Nên dùng chung:
 | GET thành công | `200` |
 | POST tạo mới thành công | `201` |
 | PUT/PATCH thành công | `200` |
-| DELETE thành công | `200` hoặc `204` |
+| DELETE thành công | `200` |
 | Request sai dữ liệu | `422` |
 | Không tìm thấy | `404` |
 | Trùng dữ liệu | `409` |
@@ -708,8 +709,8 @@ export const MOCK_VALIDATE_RESULT = {
   total_required: 3,
   details: [
     {
-      lo_id: 1,
-      lo_code: "LO1",
+      learning_outcome_id: 1,
+      learning_outcome_code: "LO1",
       question_type: "mcq",
       easy_required: 1,
       easy_available: 5,
@@ -721,8 +722,8 @@ export const MOCK_VALIDATE_RESULT = {
       missing: null
     },
     {
-      lo_id: 1,
-      lo_code: "LO1",
+      learning_outcome_id: 1,
+      learning_outcome_code: "LO1",
       question_type: "essay",
       easy_required: 0,
       easy_available: 1,
@@ -764,7 +765,7 @@ export const MOCK_EXAM_PREVIEW = {
       suggested_answer: null,
       grading_rubric: null,
       difficulty: "easy",
-      lo_code: "LO1"
+      learning_outcome_code: "LO1"
     },
     {
       order_index: 2,
@@ -775,7 +776,7 @@ export const MOCK_EXAM_PREVIEW = {
       suggested_answer: "Supervised learning học từ dữ liệu có nhãn; unsupervised learning tìm cấu trúc từ dữ liệu không nhãn.",
       grading_rubric: "So sánh dữ liệu đầu vào; mục tiêu; ví dụ thuật toán.",
       difficulty: "medium",
-      lo_code: "LO1"
+      learning_outcome_code: "LO1"
     }
   ]
 };
@@ -914,7 +915,7 @@ Backend không nên gọi DB trực tiếp trong router. Router chỉ nhận req
 | Dev environment | Docker Compose | Cả nhóm chạy DB giống nhau |
 | JSON field | JSONB | Lưu options MCQ dạng `[{key, text}]` |
 
-Nếu cần demo cực nhanh có thể dùng SQLite tạm thời, nhưng plan chính vẫn nên là PostgreSQL để tránh lệch môi trường khi tích hợp.
+MVP dùng PostgreSQL qua Docker Compose ngay từ đầu. Không dùng SQLite cho code tích hợp chung để tránh lệch migration, kiểu JSONB và môi trường test giữa các thành viên.
 
 ### 17.3 Frontend
 
@@ -926,16 +927,17 @@ Nếu cần demo cực nhanh có thể dùng SQLite tạm thời, nhưng plan ch
 | Routing | React Router | Quản lý các trang Dashboard/Courses/Review/Exam |
 | HTTP client | Axios | Dễ cấu hình baseURL/interceptor |
 | Styling | TailwindCSS | Làm UI nhanh, ít phụ thuộc CSS global |
-| UI library | Ant Design hoặc shadcn/ui | Chọn 1, không dùng cả hai để tránh lệch style |
+| UI library | shadcn/ui style components + Radix UI | Chốt dùng 1 hệ component theo frontend hiện tại, không dùng lẫn Ant Design/MUI để tránh lệch style |
+| Icons | lucide-react | Dùng thống nhất cho icon trong button, sidebar, action |
 
-Khuyến nghị cho MVP: nếu team muốn nhanh và nhiều table/form/modal sẵn, chọn Ant Design. Nếu team quen component tự build và muốn nhẹ hơn, chọn shadcn/ui.
+Chuẩn UI cho MVP: dùng shadcn/ui style components dựa trên Radix UI + TailwindCSS, icon dùng `lucide-react`. Không thêm Ant Design hoặc MUI cho màn mới; nếu dependency MUI đang tồn tại nhưng không dùng trong code thì có thể gỡ sau để giảm nhiễu.
 
 ### 17.4 AI Và Document Processing
 
 | Mục | Công nghệ chốt | Lý do |
 |---|---|---|
 | LLM provider | OpenAI API | Dễ gọi, đủ tốt cho sinh MCQ/essay |
-| Model | `gpt-4o-mini` hoặc model nhanh/rẻ tương đương | Phù hợp MVP demo |
+| Model | `gpt-4o-mini` | Chốt một model cho MVP để tránh lệch prompt, chi phí và output format |
 | PDF extract | PyMuPDF | Extract text PDF có text layer tốt |
 | DOCX extract | python-docx | Đọc DOCX đơn giản |
 | Upload file | python-multipart | FastAPI cần cho multipart/form-data |
@@ -1224,22 +1226,22 @@ frontend/
       exam.ts
       analytics.ts
 
-    pages/
-      Dashboard.tsx
-      Courses/
-        CourseList.tsx
-        CourseDetail.tsx
-        CourseForm.tsx
-        LearningOutcomesPanel.tsx
-      AIGeneration/
-        GeneratePage.tsx
-      Review/
-        ReviewPage.tsx
-      QuestionBank/
-        QuestionBankPage.tsx
-      Blueprint/
-        BlueprintPage.tsx
-      Exam/
+    app/
+      App.tsx
+      routes.tsx
+      components/
+        Layout.tsx
+        ui/
+      context/
+        AppContext.tsx
+      pages/
+        Dashboard.tsx
+        Courses.tsx
+        LearningOutcomes.tsx
+        AIGeneration.tsx
+        Review.tsx
+        QuestionBank.tsx
+        ExamBlueprint.tsx
         ExamGenerator.tsx
         ExamPreview.tsx
 
@@ -1343,9 +1345,11 @@ Nếu cần sửa file chung, nên báo nhóm trước.
 Hiện tại repo đang có:
 
 ```text
-src/api/routes.py
-src/models/schemas.py
-src/services/llm.py
+src/api/routes/
+src/api/router.py
+src/models/
+src/schemas/
+src/services/
 src/agents/
 frontend/src/.gitkeep
 ```
@@ -1353,8 +1357,8 @@ frontend/src/.gitkeep
 Nên migrate nhẹ theo thứ tự:
 
 1. Tạo `src/api/routes/`.
-2. Đổi `src/api/routes.py` thành `src/api/router.py` hoặc giữ làm router tổng.
-3. Tách `src/models/schemas.py` thành `src/schemas/*.py`.
+2. Dùng `src/api/router.py` làm router tổng; không tạo lại file `src/api/routes.py`.
+3. Đặt Pydantic schema trong `src/schemas/*.py`; không tạo lại `src/models/schemas.py`.
 4. Tạo `src/models/*.py` cho SQLAlchemy models.
 5. Tạo `src/repositories/*_repository.py`.
 6. Tạo `src/services/*_service.py` theo domain.
