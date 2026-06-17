@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections import Counter
+from dataclasses import dataclass
 
 from rank_bm25 import BM25Okapi
 from sqlalchemy.orm import Session
@@ -22,10 +23,16 @@ SECTION_PATH_WEIGHT = 3
 KEYWORD_WEIGHT = 3
 TITLE_PHRASE_BOOST = 4.0
 SECTION_PHRASE_BOOST = 2.5
+TOPIC_TITLE_BOOST_MULTIPLIER = 4.0
+TOPIC_SECTION_BOOST_MULTIPLIER = 2.0
 KEYWORD_OVERLAP_BOOST = 1.2
 TECHNICAL_TOKEN_BOOST = 0.8
 MAX_PER_SECTION = 2
 TEXT_PREVIEW_CHARS = 360
+TOPIC_QUERY_WEIGHT = 4
+EXTRA_KEYWORD_QUERY_WEIGHT = 3
+LO_CONTEXT_QUERY_WEIGHT = 1
+NO_TOPIC_EXTRA_KEYWORD_WEIGHT = 2
 
 _TOKEN_RE = re.compile(r"\b[\wÀ-ỹ]+\b", re.UNICODE)
 _STOPWORDS = {
@@ -119,6 +126,14 @@ class RetrievalError(Exception):
         self.error = error
 
 
+@dataclass(frozen=True)
+class QueryContext:
+    bm25_tokens: list[str]
+    boost_text: str
+    boost_tokens: list[str]
+    topic_is_primary: bool
+
+
 def retrieve_relevant_chunks(
     db: Session,
     *,
@@ -137,17 +152,16 @@ def retrieve_relevant_chunks(
     if not chunks:
         raise RetrievalError("Document has no chunks")
 
-    query_text = _build_query(learning_outcome, topic, extra_keywords)
-    query_tokens = _tokenize(query_text)
-    if not query_tokens:
+    query_context = _build_query_context(learning_outcome, topic, extra_keywords)
+    if not query_context.bm25_tokens:
         raise RetrievalError("Retrieval query is empty after normalization")
 
     corpus_tokens = [_weighted_chunk_tokens(chunk) for chunk in chunks]
     bm25 = BM25Okapi(corpus_tokens)
-    bm25_scores = bm25.get_scores(query_tokens)
+    bm25_scores = bm25.get_scores(query_context.bm25_tokens)
 
     scored = [
-        _score_chunk(chunk, bm25_score, query_text, query_tokens)
+        _score_chunk(chunk, bm25_score, query_context)
         for chunk, bm25_score in zip(chunks, bm25_scores, strict=True)
     ]
     relevant = [item for item in scored if item["score"] >= MIN_RELEVANCE_SCORE]
@@ -177,17 +191,43 @@ def _validate_inputs(document: Document | None, learning_outcome: LearningOutcom
         raise RetrievalError("Learning outcome does not belong to the document course")
 
 
-def _build_query(
+def _build_query_context(
     learning_outcome: LearningOutcome,
     topic: str | None,
     extra_keywords: list[str] | None,
-) -> str:
-    parts = [learning_outcome.description]
-    if topic:
-        parts.append(topic)
-    if extra_keywords:
-        parts.extend(extra_keywords)
-    return " ".join(part for part in parts if part)
+) -> QueryContext:
+    lo_text = learning_outcome.description or ""
+    topic_text = topic or ""
+    extra_text = " ".join(extra_keywords or [])
+
+    lo_tokens = _tokenize(lo_text)
+    topic_tokens = _tokenize(topic_text)
+    extra_tokens = _tokenize(extra_text)
+
+    if topic_tokens:
+        bm25_tokens = (
+            topic_tokens * TOPIC_QUERY_WEIGHT
+            + extra_tokens * EXTRA_KEYWORD_QUERY_WEIGHT
+            + lo_tokens * LO_CONTEXT_QUERY_WEIGHT
+        )
+        boost_text = " ".join(part for part in [topic_text, extra_text] if part)
+        boost_tokens = topic_tokens + extra_tokens
+        return QueryContext(
+            bm25_tokens=bm25_tokens,
+            boost_text=boost_text,
+            boost_tokens=boost_tokens,
+            topic_is_primary=True,
+        )
+
+    bm25_tokens = lo_tokens + extra_tokens * NO_TOPIC_EXTRA_KEYWORD_WEIGHT
+    boost_text = " ".join(part for part in [lo_text, extra_text] if part)
+    boost_tokens = lo_tokens + extra_tokens
+    return QueryContext(
+        bm25_tokens=bm25_tokens,
+        boost_text=boost_text,
+        boost_tokens=boost_tokens,
+        topic_is_primary=False,
+    )
 
 
 def _weighted_chunk_tokens(chunk: DocumentChunk) -> list[str]:
@@ -202,29 +242,36 @@ def _weighted_chunk_tokens(chunk: DocumentChunk) -> list[str]:
 def _score_chunk(
     chunk: DocumentChunk,
     bm25_score: float,
-    query_text: str,
-    query_tokens: list[str],
+    query_context: QueryContext,
 ) -> dict:
     reasons = ["bm25"] if bm25_score > 0 else []
+    if query_context.topic_is_primary:
+        reasons.append("topic_weighted")
     boost = 0.0
-    query_phrases = _query_phrases(query_text, query_tokens)
+    query_phrases = _query_phrases(query_context.boost_text, query_context.boost_tokens)
     title_text = _normalize(chunk.title or "")
     section_text = _normalize(chunk.section_path or "")
 
     if any(phrase and phrase in title_text for phrase in query_phrases):
-        boost += TITLE_PHRASE_BOOST
+        title_boost = TITLE_PHRASE_BOOST
+        if query_context.topic_is_primary:
+            title_boost *= TOPIC_TITLE_BOOST_MULTIPLIER
+        boost += title_boost
         reasons.append("title_boost")
 
     if any(phrase and phrase in section_text for phrase in query_phrases):
-        boost += SECTION_PHRASE_BOOST
+        section_boost = SECTION_PHRASE_BOOST
+        if query_context.topic_is_primary:
+            section_boost *= TOPIC_SECTION_BOOST_MULTIPLIER
+        boost += section_boost
         reasons.append("section_path_boost")
 
-    keyword_overlap = _keyword_overlap(query_tokens, chunk.keywords or [])
+    keyword_overlap = _keyword_overlap(query_context.boost_tokens, chunk.keywords or [])
     if keyword_overlap:
         boost += KEYWORD_OVERLAP_BOOST * keyword_overlap
         reasons.append("keyword_overlap")
 
-    technical_overlap = _technical_overlap(query_tokens, chunk)
+    technical_overlap = _technical_overlap(query_context.boost_tokens, chunk)
     if technical_overlap:
         boost += TECHNICAL_TOKEN_BOOST * technical_overlap
         reasons.append("technical_token_match")
