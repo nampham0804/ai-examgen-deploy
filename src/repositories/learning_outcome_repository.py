@@ -4,6 +4,10 @@ from sqlalchemy.orm import Session
 from src.models.learning_outcome import LearningOutcome
 
 
+def get_learning_outcome(db: Session, learning_outcome_id: int) -> LearningOutcome | None:
+    return db.get(LearningOutcome, learning_outcome_id)
+
+
 def list_learning_outcomes(db: Session, course_id: int) -> list[LearningOutcome]:
     statement = (
         select(LearningOutcome)

@@ -5,8 +5,11 @@ from src.schemas.document import DocumentExtractRead, DocumentRead, DocumentUplo
 from src.schemas.document_chunk import DocumentChunkRead
 from src.schemas.learning_outcome import LearningOutcomeCreate, LearningOutcomeRead
 from src.schemas.question import QuestionRead
+from src.schemas.retrieval import ChunkRetrievalRead, ChunkRetrievalRequest, RetrievedChunkRead
 
 __all__ = [
+    "ChunkRetrievalRead",
+    "ChunkRetrievalRequest",
     "CourseCreate",
     "CourseRead",
     "DocumentChunkRead",
@@ -16,4 +19,5 @@ __all__ = [
     "LearningOutcomeCreate",
     "LearningOutcomeRead",
     "QuestionRead",
+    "RetrievedChunkRead",
 ]
