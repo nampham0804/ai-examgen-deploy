@@ -21,7 +21,7 @@ export const router = createBrowserRouter([
       { path: 'dashboard', element: <Dashboard /> },
       { path: 'courses', element: <Courses /> },
       { path: 'learning-outcomes', element: <LearningOutcomes /> },
-      { path: 'blueprint', element: <ExamBlueprint /> },
+      { path: 'exam-blueprint', element: <ExamBlueprint /> },
       { path: 'ai-generation', element: <AIGeneration /> },
       { path: 'question-bank', element: <QuestionBank /> },
       { path: 'exam-generator', element: <ExamGenerator /> },

@@ -1,6 +1,8 @@
 import { useApp } from '../context/AppContext';
-import { CheckCircle, AlertCircle, Save } from 'lucide-react';
-import { useState } from 'react';
+import { CheckCircle, AlertCircle, Save, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { blueprintApi } from '../../api/blueprints';
+import { BlueprintCreatePayload } from '../../types/exam';
 
 const blueprintData = [
   { id: 1, lo: 'LO1.1', description: 'Fundamental programming concepts', easy: 5, medium: 3, hard: 2 },
@@ -14,6 +16,8 @@ export default function ExamBlueprint() {
   const { t } = useApp();
   const [matrix, setMatrix] = useState(blueprintData);
   const [isValidated, setIsValidated] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   const updateCell = (id: number, difficulty: 'easy' | 'medium' | 'hard', value: number) => {
     setMatrix(prev => prev.map(row => 
@@ -38,6 +42,34 @@ export default function ExamBlueprint() {
 
   const validateBlueprint = () => {
     setIsValidated(true);
+    setSaveStatus('idle');
+  };
+
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      setSaveStatus('idle');
+      
+      const payload: BlueprintCreatePayload = {
+        course_id: 1, // Hardcoded for demo
+        title: "Đề thi giữa kỳ - Blueprint",
+        items: matrix.map(row => ({
+          learning_outcome_id: row.id,
+          question_type: "mcq", // Defaulting to MCQ for the UI rows right now
+          easy_count: row.easy,
+          medium_count: row.medium,
+          hard_count: row.hard
+        }))
+      };
+      
+      await blueprintApi.createBlueprint(payload);
+      setSaveStatus('success');
+    } catch (error) {
+      console.error("Failed to save blueprint", error);
+      setSaveStatus('error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const isBalanced = percentages.easy >= 30 && percentages.easy <= 50 &&
@@ -60,12 +92,27 @@ export default function ExamBlueprint() {
             <CheckCircle className="w-5 h-5" />
             {t('blueprint.validate')}
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-            <Save className="w-5 h-5" />
-            {t('blueprint.save')}
+          <button 
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
+          >
+            {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+            {isSaving ? 'Saving...' : t('blueprint.save')}
           </button>
         </div>
       </div>
+
+      {saveStatus === 'success' && (
+        <div className="p-4 bg-green-50 text-green-700 rounded-lg border border-green-200">
+          Blueprint saved successfully!
+        </div>
+      )}
+      {saveStatus === 'error' && (
+        <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-200">
+          Failed to save blueprint. Please try again.
+        </div>
+      )}
 
       {/* Validation Alert */}
       {isValidated && (
