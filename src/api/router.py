@@ -1,6 +1,11 @@
 from fastapi import APIRouter
 
+from src.api.routes.courses import router as courses_router
+from src.api.routes.documents import router as documents_router
+
 router = APIRouter()
+router.include_router(courses_router)
+router.include_router(documents_router)
 
 
 @router.get("/status")
