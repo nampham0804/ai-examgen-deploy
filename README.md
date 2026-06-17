@@ -32,8 +32,16 @@ C2-App-141/
 |
 |-- frontend/                 # Frontend application workspace
 |   |-- package.json          # Frontend package and scripts
+|   |-- vite.config.ts        # Vite configuration
 |   |-- src/                  # Frontend source code
+|   |   |-- app/              # React App components, contexts, pages
+|   |   |   |-- components/   # Reusable UI components
+|   |   |   |-- context/      # React contexts
+|   |   |   `-- pages/        # Application pages
+|   |   |-- styles/           # CSS stylesheets
+|   |   `-- main.tsx          # React application entrypoint
 |   |-- public/               # Static frontend assets
+|   |-- guidelines/           # Frontend development guidelines
 |   `-- README.md             # Frontend-specific notes
 |
 |-- docs/                     # Technical and product documentation

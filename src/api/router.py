@@ -1,7 +1,9 @@
 from fastapi import APIRouter
 
-router = APIRouter()
+from src.api.routes import blueprints
 
+router = APIRouter()
+router.include_router(blueprints.router)
 
 @router.get("/status")
 async def api_status():
