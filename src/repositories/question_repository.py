@@ -17,6 +17,11 @@ def get_question(db: Session, question_id: int) -> Question | None:
     return db.get(Question, question_id)
 
 
+def list_questions_for_quality_check(db: Session, *, course_id: int, document_id: int) -> list[Question]:
+    statement = select(Question).where(Question.course_id == course_id, Question.document_id == document_id)
+    return list(db.scalars(statement).all())
+
+
 def list_questions(
     db: Session,
     *,

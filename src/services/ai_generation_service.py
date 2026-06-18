@@ -4,7 +4,7 @@ from time import perf_counter
 
 from sqlalchemy.orm import Session
 
-from src.ai.parsers.question_parser import QuestionParseError, parse_questions
+from src.ai.parsers.question_parser import QuestionParseError, parse_questions_with_warnings
 from src.ai.prompts.question_generation import build_question_generation_messages
 from src.ai.providers.llm_provider import (
     LLMProviderError,
@@ -16,7 +16,8 @@ from src.observability.langfuse_tracer import LangfuseAIGenerationTracer
 from src.repositories.document_chunk_repository import list_document_chunks
 from src.repositories.document_repository import get_document
 from src.repositories.learning_outcome_repository import get_learning_outcome
-from src.repositories.question_repository import create_questions
+from src.repositories.question_repository import create_questions, list_questions_for_quality_check
+from src.services.question_quality_service import validate_generated_questions
 from src.services.retrieval_service import DEFAULT_TOP_K, MAX_TOP_K, RetrievalError, retrieve_relevant_chunks
 
 MAX_NUM_QUESTIONS = 20
@@ -27,6 +28,14 @@ class AIGenerationError(Exception):
         self.detail = detail
         self.status_code = status_code
         self.error = error
+
+
+class QuestionValidationError(Exception):
+    def __init__(self, detail: str, warnings: list[str]) -> None:
+        self.detail = detail
+        self.warnings = warnings
+        self.error = "Question validation failed"
+        self.status_code = 502
 
 
 def generate_questions_from_chunks(
@@ -110,6 +119,9 @@ def generate_questions_from_chunks(
 
     started_at = perf_counter()
     llm_response = None
+    parse_warnings: list[str] = []
+    quality_warnings: list[str] = []
+    validation_rejected_count = 0
     try:
         llm_response = chat_completion_with_metadata(messages=messages)
         tracer.metadata["llm_provider"] = llm_response.provider
@@ -117,12 +129,28 @@ def generate_questions_from_chunks(
         tracer.llm_provider = llm_response.provider
         tracer.llm_model = llm_response.model
         latency_ms = _latency_ms(started_at)
-        parsed_questions = parse_questions(
+        parsed_batch = parse_questions_with_warnings(
             llm_response.content,
             question_type=question_type,
             selected_chunk_ids=selected_chunk_ids,
             max_questions=requested_count,
         )
+        parse_warnings = parsed_batch.warnings
+        existing_questions = list_questions_for_quality_check(db, course_id=document.course_id, document_id=document_id)
+        quality_result = validate_generated_questions(
+            parsed_batch.questions,
+            question_type=question_type,
+            selected_chunk_ids=selected_chunk_ids,
+            existing_questions=existing_questions,
+        )
+        quality_warnings = quality_result.warnings
+        validation_rejected_count = quality_result.rejected_count
+        parsed_questions = quality_result.valid_questions
+        if not parsed_questions:
+            raise QuestionValidationError(
+                "No generated questions passed quality validation",
+                warnings=[*parse_warnings, *quality_warnings],
+            )
     except LLMProviderError as exc:
         tracer.end_failed(
             error_type=exc.error,
@@ -140,6 +168,20 @@ def generate_questions_from_chunks(
             error_message=exc.detail,
             latency_ms=_latency_ms(started_at),
             parse_status="failed",
+            output=llm_response.content if llm_response else None,
+            usage=_usage(llm_response),
+        )
+        tracer.flush()
+        raise AIGenerationError(exc.detail, status_code=exc.status_code, error=exc.error) from exc
+    except QuestionValidationError as exc:
+        tracer.metadata["validation_status"] = "failed"
+        tracer.metadata["validation_rejected_count"] = validation_rejected_count
+        tracer.metadata["validation_warnings"] = exc.warnings
+        tracer.end_failed(
+            error_type=exc.error,
+            error_message=f"{exc.detail}: {'; '.join(exc.warnings)}",
+            latency_ms=_latency_ms(started_at),
+            parse_status="validation_failed",
             output=llm_response.content if llm_response else None,
             usage=_usage(llm_response),
         )
@@ -166,13 +208,18 @@ def generate_questions_from_chunks(
     )
 
     warnings = []
+    warnings.extend(parse_warnings)
+    warnings.extend(quality_warnings)
     if len(saved_questions) < requested_count:
-        warnings.append("LLM returned fewer valid questions than requested")
+        warnings.append("LLM returned fewer quality-valid questions than requested")
+    tracer.metadata["validation_status"] = "success"
+    tracer.metadata["validation_rejected_count"] = validation_rejected_count
+    tracer.metadata["validation_warnings"] = warnings
     tracer.end_success(
         output=llm_response.content,
         usage=_usage(llm_response),
         latency_ms=latency_ms,
-        generated_question_count=len(parsed_questions),
+        generated_question_count=len(parsed_batch.questions),
         saved_question_count=len(saved_questions),
     )
     tracer.flush()
