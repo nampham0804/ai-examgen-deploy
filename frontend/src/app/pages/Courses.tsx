@@ -2,23 +2,14 @@ import { useApp } from '../context/AppContext';
 import { Plus, Search, Filter, Edit, Trash2, Eye, MoreVertical } from 'lucide-react';
 import { useState } from 'react';
 
-const coursesData = [
-  { id: 1, code: 'CS101', name: 'Introduction to Computer Science', credits: 3, status: 'active', los: 12, questions: 145 },
-  { id: 2, code: 'CS201', name: 'Data Structures and Algorithms', credits: 4, status: 'active', los: 15, questions: 203 },
-  { id: 3, code: 'MATH201', name: 'Linear Algebra', credits: 3, status: 'active', los: 10, questions: 89 },
-  { id: 4, code: 'CS301', name: 'Database Systems', credits: 3, status: 'draft', los: 8, questions: 67 },
-  { id: 5, code: 'CS401', name: 'Machine Learning', credits: 4, status: 'active', los: 18, questions: 178 },
-  { id: 6, code: 'ENG101', name: 'Technical Writing', credits: 2, status: 'active', los: 6, questions: 45 },
-  { id: 7, code: 'CS501', name: 'Advanced Algorithms', credits: 4, status: 'archived', los: 14, questions: 98 },
-  { id: 8, code: 'STAT201', name: 'Probability and Statistics', credits: 3, status: 'active', los: 11, questions: 112 },
-];
+import { MOCK_COURSES } from '../../mocks/courses';
 
 export default function Courses() {
   const { t } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
-  const filteredCourses = coursesData.filter(course => {
+  const filteredCourses = MOCK_COURSES.filter(course => {
     const matchesSearch = course.code.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          course.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'all' || course.status === filterStatus;
@@ -152,7 +143,7 @@ export default function Courses() {
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700">
           <div className="text-sm text-gray-700 dark:text-gray-300">
             Showing <span className="font-medium">1</span> to <span className="font-medium">{filteredCourses.length}</span> of{' '}
-            <span className="font-medium">{coursesData.length}</span> results
+            <span className="font-medium">{MOCK_COURSES.length}</span> results
           </div>
           <div className="flex gap-2">
             <button className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -174,21 +165,21 @@ export default function Courses() {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="text-sm text-gray-600 dark:text-gray-400">Active Courses</div>
           <div className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
-            {coursesData.filter(c => c.status === 'active').length}
+            {MOCK_COURSES.filter(c => c.status === 'active').length}
           </div>
           <div className="text-xs text-green-600 dark:text-green-400 mt-2">+2 this month</div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="text-sm text-gray-600 dark:text-gray-400">Total Learning Outcomes</div>
           <div className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
-            {coursesData.reduce((sum, c) => sum + c.los, 0)}
+            {MOCK_COURSES.reduce((sum, c) => sum + c.los, 0)}
           </div>
           <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">Across all courses</div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="text-sm text-gray-600 dark:text-gray-400">Total Questions</div>
           <div className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
-            {coursesData.reduce((sum, c) => sum + c.questions, 0)}
+            {MOCK_COURSES.reduce((sum, c) => sum + c.questions, 0)}
           </div>
           <div className="text-xs text-purple-600 dark:text-purple-400 mt-2">In question bank</div>
         </div>

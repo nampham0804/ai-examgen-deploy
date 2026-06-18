@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { CheckCircle, AlertCircle, Save, Loader2, Trash2, RefreshCw, Plus, Search, ChevronDown } from 'lucide-react';
 import { blueprintApi } from '../../api/blueprints';
-import { BlueprintCreatePayload, BlueprintUpdatePayload, BlueprintItemCreate } from '../../types/exam';
+import { BlueprintCreatePayload, BlueprintUpdatePayload, BlueprintItemCreate, ValidationResultData } from '../../types/exam';
 
 // Generate 120 mock courses to demonstrate scalable dropdown
 const MOCK_COURSES = [
@@ -143,6 +143,7 @@ export default function ExamBlueprint() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isValidated, setIsValidated] = useState(false);
+  const [validationResult, setValidationResult] = useState<ValidationResultData | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -156,6 +157,7 @@ export default function ExamBlueprint() {
       setIsLoading(true);
       setSaveStatus('idle');
       setIsValidated(false);
+      setValidationResult(null);
       setSelectedTypesToAdd({});
 
       const response = await blueprintApi.getBlueprints(courseId);
@@ -212,6 +214,7 @@ export default function ExamBlueprint() {
       return row;
     }));
     setIsValidated(false);
+    setValidationResult(null);
     setSaveStatus('idle');
   };
 
@@ -232,6 +235,7 @@ export default function ExamBlueprint() {
 
     setSelectedTypesToAdd(prev => ({ ...prev, [loId]: '' as any }));
     setIsValidated(false);
+    setValidationResult(null);
     setSaveStatus('idle');
   };
 
@@ -263,9 +267,23 @@ export default function ExamBlueprint() {
     hard: grandTotal > 0 ? Math.round((totals.hard / grandTotal) * 100) : 0,
   };
 
-  const validateBlueprint = () => {
-    setIsValidated(true);
-    setSaveStatus('idle');
+  const validateBlueprint = async () => {
+    if (!blueprintId) {
+      alert(t('blueprint.saveBeforeValidate') || 'Please save the blueprint before validating');
+      return;
+    }
+    try {
+      setIsLoading(true);
+      const res = await blueprintApi.validateBlueprint(blueprintId);
+      setValidationResult(res.data);
+      setIsValidated(true);
+      setSaveStatus('idle');
+    } catch (e) {
+      console.error("Failed to validate blueprint", e);
+      alert('Failed to validate blueprint');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const constructItemsPayload = (): BlueprintItemCreate[] => {
@@ -326,6 +344,7 @@ export default function ExamBlueprint() {
       setBlueprintId(null);
       setMatrix(matrix.map(row => ({ ...row, items: [] })));
       setIsValidated(false);
+      setValidationResult(null);
       setSaveStatus('idle');
     } catch (error) {
       console.error("Failed to delete blueprint", error);
@@ -401,25 +420,40 @@ export default function ExamBlueprint() {
       )}
 
       {/* Validation Alert */}
-      {isValidated && (
-        <div className={`p-4 rounded-lg border-2 flex items-start gap-3 ${
-          isBalanced 
+      {isValidated && validationResult && (
+        <div className={`p-4 rounded-lg border-2 flex flex-col gap-3 ${
+          validationResult.is_valid 
             ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' 
-            : 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
+            : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'
         }`}>
-          {isBalanced ? (
-            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-          ) : (
-            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-          )}
-          <div>
-            <div className={`font-semibold ${isBalanced ? 'text-green-900 dark:text-green-200' : 'text-amber-900 dark:text-amber-200'}`}>
-              {isBalanced ? t('blueprint.balanced') : t('blueprint.unbalanced')}
-            </div>
-            <div className={`text-sm mt-1 ${isBalanced ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'}`}>
-              {isBalanced ? t('blueprint.balancedDesc') : t('blueprint.unbalancedDesc')}
+          <div className="flex items-start gap-3">
+            {validationResult.is_valid ? (
+              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+            )}
+            <div>
+              <div className={`font-semibold ${validationResult.is_valid ? 'text-green-900 dark:text-green-200' : 'text-red-900 dark:text-red-200'}`}>
+                {validationResult.is_valid ? t('blueprint.balanced') || 'Blueprint Validated Successfully' : t('blueprint.unbalanced') || 'Blueprint Validation Failed'}
+              </div>
+              <div className={`text-sm mt-1 ${validationResult.is_valid ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
+                {validationResult.is_valid 
+                  ? t('blueprint.balancedDesc') || 'All requested questions are available in the approved Question Bank.' 
+                  : t('blueprint.unbalancedDesc') || 'There are missing questions in the Question Bank. Please add more approved questions or adjust the blueprint.'}
+              </div>
             </div>
           </div>
+          {!validationResult.is_valid && (
+            <div className="mt-2 pl-8">
+               <ul className="list-disc text-sm text-red-700 dark:text-red-300 space-y-1">
+                 {validationResult.details.filter(d => !d.is_valid).map((detail, idx) => (
+                   <li key={idx}>
+                     <span className="font-medium">{detail.learning_outcome_code}</span> ({t(QUESTION_TYPES.find(q => q.value === detail.question_type)?.labelKey || detail.question_type)}): {detail.missing}
+                   </li>
+                 ))}
+               </ul>
+            </div>
+          )}
         </div>
       )}
 

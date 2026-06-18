@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
-from src.models.exam import ExamBlueprint, ExamBlueprintItem
+from src.models.exam import ExamBlueprint, ExamBlueprintItem, Exam, ExamQuestion
 from src.schemas.blueprint import BlueprintCreate, BlueprintUpdate
+from src.schemas.exam_schema import ExamCreate
 
 class ExamRepository:
     def __init__(self, db: Session):
@@ -75,3 +76,47 @@ class ExamRepository:
             self.db.commit()
             return True
         return False
+
+    # Exam methods
+    def create_exam(self, exam_in: ExamCreate) -> Exam:
+        db_exam = Exam(
+            course_id=exam_in.course_id,
+            blueprint_id=exam_in.blueprint_id,
+            title=exam_in.title,
+            duration_minutes=exam_in.duration_minutes,
+            status="draft"
+        )
+        self.db.add(db_exam)
+        self.db.commit()
+        self.db.refresh(db_exam)
+        return db_exam
+
+    def get_exams_by_course(self, course_id: int):
+        return self.db.query(Exam).filter(Exam.course_id == course_id).all()
+
+    def get_exam_by_id(self, exam_id: int):
+        return self.db.query(Exam).filter(Exam.id == exam_id).first()
+
+    def update_exam_status(self, exam_id: int, status: str, total_questions: int = None):
+        db_exam = self.get_exam_by_id(exam_id)
+        if db_exam:
+            db_exam.status = status
+            if total_questions is not None:
+                db_exam.total_questions = total_questions
+            self.db.commit()
+            self.db.refresh(db_exam)
+        return db_exam
+
+    def add_exam_questions(self, exam_id: int, question_ids: list[int]):
+        # First remove any existing questions
+        self.db.query(ExamQuestion).filter(ExamQuestion.exam_id == exam_id).delete()
+        
+        # Add new questions
+        for idx, q_id in enumerate(question_ids):
+            db_eq = ExamQuestion(
+                exam_id=exam_id,
+                question_id=q_id,
+                order_index=idx
+            )
+            self.db.add(db_eq)
+        self.db.commit()

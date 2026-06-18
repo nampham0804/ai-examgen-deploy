@@ -33,3 +33,35 @@ class ExamBlueprintItem(Base):
     hard_count = Column(Integer, default=0)
 
     blueprint = relationship("ExamBlueprint", back_populates="items")
+
+
+class Exam(Base):
+    __tablename__ = "exams"
+
+    id = Column(Integer, primary_key=True, index=True)
+    course_id = Column(Integer, index=True)
+    blueprint_id = Column(Integer, ForeignKey("exam_blueprints.id", ondelete="SET NULL"), nullable=True)
+    title = Column(String(255), nullable=False)
+    duration_minutes = Column(Integer, default=60)
+    total_questions = Column(Integer, default=0)
+    status = Column(String(50), default='draft') # draft, generated
+    created_by = Column(Integer, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    blueprint = relationship("ExamBlueprint")
+    questions = relationship("ExamQuestion", back_populates="exam", cascade="all, delete-orphan", order_by="ExamQuestion.order_index")
+
+
+class ExamQuestion(Base):
+    __tablename__ = "exam_questions"
+    __table_args__ = (
+        UniqueConstraint('exam_id', 'question_id', name='uq_exam_question'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    exam_id = Column(Integer, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
+    question_id = Column(Integer, nullable=False) # Foreign key to questions.id when it exists
+    order_index = Column(Integer, default=0)
+
+    exam = relationship("Exam", back_populates="questions")

@@ -2,6 +2,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from src.repositories.exam_repository import ExamRepository
 from src.schemas.blueprint import BlueprintCreate, BlueprintUpdate, ValidationResultData, ValidationDetail
+from src.schemas.exam_schema import ExamCreate, ExamPreviewData, ExamPreviewQuestion
+from fastapi import HTTPException
+import json
 from fastapi import HTTPException
 
 class ExamService:
@@ -131,3 +134,185 @@ class ExamService:
             total_required=total_required,
             details=details
         )
+
+    # Exam methods
+    def create_exam(self, exam_in: ExamCreate):
+        return self.repo.create_exam(exam_in)
+
+    def get_exams_by_course(self, course_id: int):
+        return self.repo.get_exams_by_course(course_id)
+
+    def get_exam_by_id(self, exam_id: int):
+        exam = self.repo.get_exam_by_id(exam_id)
+        if not exam:
+            raise HTTPException(status_code=404, detail="Exam not found")
+        return exam
+
+    def generate_exam(self, exam_id: int):
+        exam = self.get_exam_by_id(exam_id)
+        if not exam.blueprint_id:
+            raise HTTPException(status_code=400, detail="Exam has no associated blueprint")
+
+        blueprint = self.get_blueprint_by_id(exam.blueprint_id)
+        if blueprint.status != 'validated':
+            raise HTTPException(status_code=400, detail="Blueprint must be validated before generation")
+
+        selected_question_ids = []
+
+        # Iterate over blueprint items and pick random questions matching the requirements
+        for item in blueprint.items:
+            for difficulty, count in [('easy', item.easy_count), ('medium', item.medium_count), ('hard', item.hard_count)]:
+                if count > 0:
+                    query = text("""
+                        SELECT id FROM questions
+                        WHERE course_id = :course_id
+                          AND learning_outcome_id = :lo_id
+                          AND question_type = :q_type
+                          AND difficulty = :difficulty
+                          AND status = 'approved'
+                        ORDER BY RANDOM()
+                        LIMIT :limit
+                    """)
+                    
+                    results = self.db.execute(query, {
+                        "course_id": blueprint.course_id,
+                        "lo_id": item.learning_outcome_id,
+                        "q_type": item.question_type,
+                        "difficulty": difficulty,
+                        "limit": count
+                    }).fetchall()
+                    
+                    if len(results) < count:
+                        raise HTTPException(status_code=400, detail=f"Not enough {difficulty} questions for LO {item.learning_outcome_id}")
+                    
+                    selected_question_ids.extend([row[0] for row in results])
+
+        # Save the selected questions to exam_questions
+        self.repo.add_exam_questions(exam_id, selected_question_ids)
+        
+        # Update exam status and total questions
+        updated_exam = self.repo.update_exam_status(exam_id, 'generated', len(selected_question_ids))
+        return updated_exam
+
+    def get_exam_preview(self, exam_id: int) -> ExamPreviewData:
+        exam = self.get_exam_by_id(exam_id)
+        
+        # In a real system, we'd query `courses` for the course name.
+        # Here we hardcode or mock it if table doesn't exist, but let's try raw SQL
+        course_name_query = text("SELECT name FROM courses WHERE id = :course_id")
+        try:
+            course_name_result = self.db.execute(course_name_query, {"course_id": exam.course_id}).scalar()
+        except Exception:
+            course_name_result = f"Course {exam.course_id}"
+        course_name = course_name_result if course_name_result else f"Course {exam.course_id}"
+
+        # Query detailed questions
+        query = text("""
+            SELECT 
+                eq.id as eq_id, eq.question_id, eq.order_index,
+                q.content as text, q.question_type as type, q.difficulty,
+                lo.code as lo_code,
+                q.options, q.correct_answer, q.sample_answer, q.rubric
+            FROM exam_questions eq
+            JOIN questions q ON eq.question_id = q.id
+            LEFT JOIN learning_outcomes lo ON q.learning_outcome_id = lo.id
+            WHERE eq.exam_id = :exam_id
+            ORDER BY eq.order_index ASC
+        """)
+        
+        try:
+            results = self.db.execute(query, {"exam_id": exam_id}).fetchall()
+        except Exception as e:
+            # Table might not exist yet, return empty list or mock
+            results = []
+
+        questions = []
+        for row in results:
+            # Attempt to parse options if it's stored as JSON string
+            options = None
+            if row.options:
+                try:
+                    options = json.loads(row.options) if isinstance(row.options, str) else row.options
+                except Exception:
+                    options = []
+
+            questions.append(ExamPreviewQuestion(
+                id=row.eq_id,
+                exam_id=exam_id,
+                question_id=row.question_id,
+                order_index=row.order_index,
+                text=row.text or "Mock question text",
+                type=row.type,
+                difficulty=row.difficulty,
+                learning_outcome_code=row.lo_code or "LO",
+                options=options,
+                correct_answer=row.correct_answer,
+                sample_answer=row.sample_answer,
+                rubric=row.rubric
+            ))
+
+        return ExamPreviewData(
+            id=exam.id,
+            title=exam.title,
+            course_name=course_name,
+            duration_minutes=exam.duration_minutes,
+            total_questions=exam.total_questions,
+            questions=questions
+        )
+
+    def swap_exam_question(self, exam_id: int, question_id: int):
+        exam = self.get_exam_by_id(exam_id)
+        
+        # 1. Find the existing exam_question to know what to replace
+        eq_query = text("SELECT id, question_id, order_index FROM exam_questions WHERE exam_id = :exam_id AND question_id = :question_id")
+        eq_row = self.db.execute(eq_query, {"exam_id": exam_id, "question_id": question_id}).fetchone()
+        
+        if not eq_row:
+            raise HTTPException(status_code=404, detail="Question not found in this exam")
+            
+        eq_id, current_q_id, order_idx = eq_row
+        
+        # 2. Get properties of the current question
+        q_query = text("SELECT learning_outcome_id, question_type, difficulty FROM questions WHERE id = :q_id")
+        q_row = self.db.execute(q_query, {"q_id": current_q_id}).fetchone()
+        if not q_row:
+            raise HTTPException(status_code=404, detail="Original question metadata not found")
+            
+        lo_id, q_type, difficulty = q_row
+        
+        # 3. Find all existing question IDs in this exam to avoid duplicates
+        existing_qs_query = text("SELECT question_id FROM exam_questions WHERE exam_id = :exam_id")
+        existing_qs = [r[0] for r in self.db.execute(existing_qs_query, {"exam_id": exam_id}).fetchall()]
+        
+        # 4. Find an alternative question matching the exact criteria
+        alt_query = text("""
+            SELECT id FROM questions 
+            WHERE course_id = :course_id
+              AND learning_outcome_id = :lo_id
+              AND question_type = :q_type
+              AND difficulty = :difficulty
+              AND status = 'approved'
+              AND id != ALL(:existing_qs)
+            ORDER BY RANDOM()
+            LIMIT 1
+        """)
+        
+        alt_row = self.db.execute(alt_query, {
+            "course_id": exam.course_id,
+            "lo_id": lo_id,
+            "q_type": q_type,
+            "difficulty": difficulty,
+            "existing_qs": existing_qs
+        }).fetchone()
+        
+        if not alt_row:
+            raise HTTPException(status_code=400, detail="No alternative question available matching these criteria")
+            
+        new_q_id = alt_row[0]
+        
+        # 5. Update exam_questions with the new question ID
+        update_query = text("UPDATE exam_questions SET question_id = :new_q_id WHERE id = :eq_id")
+        self.db.execute(update_query, {"new_q_id": new_q_id, "eq_id": eq_id})
+        self.db.commit()
+        
+        return {"message": "Question swapped successfully", "new_question_id": new_q_id}
