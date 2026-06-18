@@ -34,7 +34,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    from src.models import course, learning_outcome, user  # noqa: F401
+    from src.models import course, document, document_chunk, learning_outcome, question, user  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
 
@@ -42,4 +42,3 @@ def init_db() -> None:
         if db.get(user.User, 1) is None:
             db.add(user.User(id=1, email="lecturer@demo.com", full_name="Demo Lecturer"))
             db.commit()
-

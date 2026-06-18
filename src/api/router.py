@@ -1,8 +1,14 @@
 from fastapi import APIRouter
 
 from src.api.routes import courses, learning_outcomes
+from src.api.routes.ai_generation import router as ai_generation_router
+from src.api.routes.documents import router as documents_router
+from src.api.routes.retrieval import router as retrieval_router
 
 router = APIRouter()
+router.include_router(ai_generation_router)
+router.include_router(documents_router)
+router.include_router(retrieval_router)
 
 
 @router.get("/status")

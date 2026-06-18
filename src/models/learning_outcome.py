@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.repositories.database import Base
 
@@ -27,3 +27,6 @@ class LearningOutcome(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+    course = relationship("Course", back_populates="learning_outcomes")
+    questions = relationship("Question", back_populates="learning_outcome")

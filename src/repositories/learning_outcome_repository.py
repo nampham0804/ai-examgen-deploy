@@ -13,6 +13,10 @@ def get_learning_outcome_by_id(db: Session, learning_outcome_id: int) -> Learnin
     return db.get(LearningOutcome, learning_outcome_id)
 
 
+def get_learning_outcome(db: Session, learning_outcome_id: int) -> LearningOutcome | None:
+    return get_learning_outcome_by_id(db, learning_outcome_id)
+
+
 def get_learning_outcome_by_course_and_code(db: Session, course_id: int, code: str) -> LearningOutcome | None:
     return db.scalar(
         select(LearningOutcome).where(
