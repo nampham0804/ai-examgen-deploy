@@ -36,6 +36,11 @@ LLM provider config:
 ```env
 LLM_PROVIDER=minimax
 LLM_TEMPERATURE=0.7
+LLM_TIMEOUT_SECONDS=60
+LLM_MAX_RETRIES=2
+LLM_RETRY_BACKOFF_SECONDS=1.5
+LLM_FALLBACK_ENABLED=false
+LLM_FALLBACK_PROVIDERS=nine_router,minimax
 
 MINIMAX_API_KEY=...
 MINIMAX_BASE_URL=https://api.tokenrouter.com/v1
@@ -186,6 +191,8 @@ POST {base_url}/chat/completions
 ```
 
 - Provider-backed smoke test succeeded with MiniMax-M3.
+- Provider calls support configurable timeout and retry for transient failures.
+- Optional fallback providers can be enabled with `LLM_FALLBACK_ENABLED=true`.
 - Generated questions are saved with:
   - `status = pending_review`
   - `created_by_ai = true`
@@ -576,6 +583,49 @@ Smoke helper docs/scripts:
   - requires real configured provider and outbound network.
 - Next recommended task:
   - add optional Langfuse tracing.
+
+## Phase 1E.2: LLM Provider Resilience Audit And Minimal Improvement
+
+- Date: 2026-06-18
+- Owner: TV2 backend
+- Purpose: make the generic OpenAI-compatible provider safer under transient provider/network failures.
+- Problem solved: provider calls used a fixed timeout and did not support retries or optional fallback providers.
+- Implementation:
+  - Added `LLM_TIMEOUT_SECONDS`, default `60`.
+  - Added `LLM_MAX_RETRIES`, default `2`.
+  - Added `LLM_RETRY_BACKOFF_SECONDS`, default `1.5`.
+  - Added optional `LLM_FALLBACK_ENABLED`, default `false`.
+  - Added `LLM_FALLBACK_PROVIDERS`, default `nine_router,minimax`.
+  - Retries only transient errors: network/connect/timeout errors, HTTP 429, and HTTP 5xx.
+  - Does not retry missing config, auth/invalid request HTTP errors, or malformed provider responses after HTTP success.
+  - Skips fallback providers with incomplete config.
+  - Preserves actual provider/model metadata from the provider that succeeds.
+- Technologies:
+  - HTTPX
+  - OpenAI-compatible chat completions API
+- Files changed:
+  - `src/ai/providers/llm_provider.py`
+  - `src/services/ai_generation_service.py`
+  - `.env.example`
+  - `docs/tv2_backend_progress_report.md`
+- Endpoints:
+  - no new endpoint.
+  - applies to `POST /api/v1/ai/generate-questions`.
+- Tests:
+  - provider retry/fallback smoke tests with mocked HTTPX responses.
+  - provider-backed MiniMax smoke verification.
+  - ruff check on changed files.
+  - `pytest tests -q`.
+- Results:
+  - transient failures are retried with configurable backoff.
+  - fallback remains disabled by default.
+  - when fallback is enabled, only fully configured fallback providers are attempted after retryable primary failures.
+  - no mock questions are returned if all providers fail.
+- Caveats:
+  - fallback is not used for successful HTTP responses that later fail LLM JSON/question parsing.
+  - fallback depends on valid provider configuration and outbound network availability.
+- Next recommended task:
+  - keep provider behavior stable while integrating frontend AI generation flows.
 
 ## Phase 1F: Optional Langfuse Tracing
 

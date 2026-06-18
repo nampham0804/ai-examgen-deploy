@@ -112,6 +112,10 @@ def generate_questions_from_chunks(
     llm_response = None
     try:
         llm_response = chat_completion_with_metadata(messages=messages)
+        tracer.metadata["llm_provider"] = llm_response.provider
+        tracer.metadata["llm_model"] = llm_response.model
+        tracer.llm_provider = llm_response.provider
+        tracer.llm_model = llm_response.model
         latency_ms = _latency_ms(started_at)
         parsed_questions = parse_questions(
             llm_response.content,
