@@ -13,6 +13,10 @@ def get_course_by_id(db: Session, course_id: int) -> Course | None:
     return db.get(Course, course_id)
 
 
+def get_course(db: Session, course_id: int) -> Course | None:
+    return get_course_by_id(db, course_id)
+
+
 def get_course_by_code(db: Session, code: str) -> Course | None:
     return db.scalar(select(Course).where(Course.code == code))
 
