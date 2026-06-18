@@ -1,16 +1,22 @@
-import { BlueprintCreatePayload, BlueprintResponse, BlueprintListResponse } from '../types/exam';
+import { BlueprintCreatePayload, BlueprintUpdatePayload, BlueprintResponse, BlueprintListResponse, Blueprint } from '../types/exam';
 import { MOCK_BLUEPRINT } from '../mocks/exam';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
+// In-memory mock store for session persistence
+let mockBlueprints: Blueprint[] = [MOCK_BLUEPRINT];
+
 export const blueprintApi = {
   async getBlueprints(courseId: number): Promise<BlueprintListResponse> {
     if (USE_MOCK) {
-      return new Promise(resolve => setTimeout(() => resolve({
-        data: [MOCK_BLUEPRINT],
-        message: "Mock blueprints retrieved successfully"
-      }), 500));
+      return new Promise(resolve => setTimeout(() => {
+        const filtered = mockBlueprints.filter(b => b.course_id === courseId);
+        resolve({
+          data: filtered,
+          message: "Mock blueprints retrieved successfully"
+        });
+      }, 500));
     }
     const response = await fetch(`${API_BASE_URL}/blueprints?course_id=${courseId}`);
     if (!response.ok) throw new Error('Failed to fetch blueprints');
@@ -19,10 +25,14 @@ export const blueprintApi = {
 
   async getBlueprint(id: number): Promise<BlueprintResponse> {
     if (USE_MOCK) {
-      return new Promise(resolve => setTimeout(() => resolve({
-        data: MOCK_BLUEPRINT,
-        message: "Mock blueprint retrieved successfully"
-      }), 500));
+      return new Promise((resolve, reject) => setTimeout(() => {
+        const found = mockBlueprints.find(b => b.id === id);
+        if (found) {
+          resolve({ data: found, message: "Mock blueprint retrieved successfully" });
+        } else {
+          reject(new Error("Blueprint not found"));
+        }
+      }, 500));
     }
     const response = await fetch(`${API_BASE_URL}/blueprints/${id}`);
     if (!response.ok) throw new Error('Failed to fetch blueprint');
@@ -31,21 +41,27 @@ export const blueprintApi = {
 
   async createBlueprint(payload: BlueprintCreatePayload): Promise<BlueprintResponse> {
     if (USE_MOCK) {
-      return new Promise(resolve => setTimeout(() => resolve({
-        data: {
-          ...MOCK_BLUEPRINT,
-          id: Math.floor(Math.random() * 1000),
+      return new Promise(resolve => setTimeout(() => {
+        const newBlueprint: Blueprint = {
+          id: Math.floor(Math.random() * 10000),
           title: payload.title,
           course_id: payload.course_id,
           total_questions: payload.items.reduce((sum, item) => sum + item.easy_count + item.medium_count + item.hard_count, 0),
+          status: 'draft',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
           items: payload.items.map((item, index) => ({
             ...item,
-            id: index + 1,
-            blueprint_id: 1,
+            id: Math.floor(Math.random() * 10000) + index,
+            blueprint_id: 1, // Will be set to real ID in DB
           }))
-        },
-        message: "Mock blueprint created successfully"
-      }), 800));
+        };
+        mockBlueprints.push(newBlueprint);
+        resolve({
+          data: newBlueprint,
+          message: "Mock blueprint created successfully"
+        });
+      }, 800));
     }
     const response = await fetch(`${API_BASE_URL}/blueprints`, {
       method: 'POST',
@@ -53,6 +69,61 @@ export const blueprintApi = {
       body: JSON.stringify(payload),
     });
     if (!response.ok) throw new Error('Failed to create blueprint');
+    return response.json();
+  },
+
+  async updateBlueprint(id: number, payload: BlueprintUpdatePayload): Promise<BlueprintResponse> {
+    if (USE_MOCK) {
+      return new Promise((resolve, reject) => setTimeout(() => {
+        const index = mockBlueprints.findIndex(b => b.id === id);
+        if (index === -1) return reject(new Error("Blueprint not found"));
+        
+        const existing = mockBlueprints[index];
+        const updatedItems = payload.items ? payload.items.map((item, idx) => ({
+            ...item,
+            id: Math.floor(Math.random() * 10000) + idx,
+            blueprint_id: existing.id,
+        })) : existing.items;
+
+        const updatedBlueprint: Blueprint = {
+          ...existing,
+          title: payload.title || existing.title,
+          total_questions: payload.items 
+            ? payload.items.reduce((sum, item) => sum + item.easy_count + item.medium_count + item.hard_count, 0)
+            : existing.total_questions,
+          items: updatedItems,
+          updated_at: new Date().toISOString()
+        };
+        
+        mockBlueprints[index] = updatedBlueprint;
+        resolve({
+          data: updatedBlueprint,
+          message: "Mock blueprint updated successfully"
+        });
+      }, 800));
+    }
+    const response = await fetch(`${API_BASE_URL}/blueprints/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Failed to update blueprint');
+    return response.json();
+  },
+
+  async deleteBlueprint(id: number): Promise<{ message: string }> {
+    if (USE_MOCK) {
+      return new Promise((resolve, reject) => setTimeout(() => {
+        const index = mockBlueprints.findIndex(b => b.id === id);
+        if (index === -1) return reject(new Error("Blueprint not found"));
+        mockBlueprints.splice(index, 1);
+        resolve({ message: "Mock blueprint deleted successfully" });
+      }, 500));
+    }
+    const response = await fetch(`${API_BASE_URL}/blueprints/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Failed to delete blueprint');
     return response.json();
   }
 };

@@ -29,6 +29,7 @@ class BlueprintCreate(BlueprintBase):
 class BlueprintUpdate(BaseModel):
     title: Optional[str] = None
     status: Optional[str] = None
+    items: Optional[List[BlueprintItemCreate]] = None
 
 class BlueprintDataResponse(BlueprintBase):
     id: int
@@ -48,4 +49,26 @@ class BlueprintResponse(BaseModel):
 
 class BlueprintListResponse(BaseModel):
     data: List[BlueprintDataResponse]
+    message: str
+
+class ValidationDetail(BaseModel):
+    learning_outcome_id: int
+    learning_outcome_code: str
+    question_type: str
+    easy_required: int
+    easy_available: int
+    medium_required: int
+    medium_available: int
+    hard_required: int
+    hard_available: int
+    is_valid: bool
+    missing: Optional[str] = None
+
+class ValidationResultData(BaseModel):
+    is_valid: bool
+    total_required: int
+    details: List[ValidationDetail]
+
+class ValidationResultResponse(BaseModel):
+    data: ValidationResultData
     message: str

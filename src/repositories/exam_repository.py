@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
-from src.database.exam_db import ExamBlueprint, ExamBlueprintItem
-from src.models.blueprint import BlueprintCreate, BlueprintUpdate
+from src.models.exam import ExamBlueprint, ExamBlueprintItem
+from src.schemas.blueprint import BlueprintCreate, BlueprintUpdate
 
 class ExamRepository:
     def __init__(self, db: Session):
@@ -38,12 +38,32 @@ class ExamRepository:
     def get_blueprint_by_id(self, blueprint_id: int):
         return self.db.query(ExamBlueprint).filter(ExamBlueprint.id == blueprint_id).first()
 
-    def update_blueprint(self, blueprint_id: int, blueprint_update: BlueprintUpdate):
+    def update_blueprint(self, blueprint_id: int, blueprint_update: BlueprintUpdate, total_questions: int = None):
         db_blueprint = self.get_blueprint_by_id(blueprint_id)
         if db_blueprint:
-            update_data = blueprint_update.model_dump(exclude_unset=True)
-            for key, value in update_data.items():
-                setattr(db_blueprint, key, value)
+            if blueprint_update.title is not None:
+                db_blueprint.title = blueprint_update.title
+            if blueprint_update.status is not None:
+                db_blueprint.status = blueprint_update.status
+            if total_questions is not None:
+                db_blueprint.total_questions = total_questions
+            
+            if blueprint_update.items is not None:
+                # Remove old items
+                self.db.query(ExamBlueprintItem).filter(ExamBlueprintItem.blueprint_id == blueprint_id).delete()
+                
+                # Add new items
+                for item in blueprint_update.items:
+                    db_item = ExamBlueprintItem(
+                        blueprint_id=db_blueprint.id,
+                        learning_outcome_id=item.learning_outcome_id,
+                        question_type=item.question_type,
+                        easy_count=item.easy_count,
+                        medium_count=item.medium_count,
+                        hard_count=item.hard_count
+                    )
+                    self.db.add(db_item)
+            
             self.db.commit()
             self.db.refresh(db_blueprint)
         return db_blueprint

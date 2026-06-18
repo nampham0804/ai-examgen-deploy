@@ -34,6 +34,11 @@ export interface BlueprintCreatePayload {
   items: BlueprintItemCreate[];
 }
 
+export interface BlueprintUpdatePayload {
+  title?: string;
+  items?: BlueprintItemCreate[]; // Using Create payload format since items are usually overwritten or synced
+}
+
 export interface BlueprintResponse {
   data: Blueprint;
   message: string;

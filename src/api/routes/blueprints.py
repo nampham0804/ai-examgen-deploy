@@ -4,11 +4,12 @@ from typing import Optional
 
 from src.api.deps import get_db
 from src.services.exam_service import ExamService
-from src.models.blueprint import (
+from src.schemas.blueprint import (
     BlueprintCreate, 
     BlueprintUpdate, 
     BlueprintResponse, 
-    BlueprintListResponse
+    BlueprintListResponse,
+    ValidationResultResponse
 )
 
 router = APIRouter(prefix="/blueprints", tags=["blueprints"])
@@ -46,3 +47,9 @@ def delete_blueprint(blueprint_id: int, db: Session = Depends(get_db)):
     service = ExamService(db)
     service.delete_blueprint(blueprint_id)
     return {"data": {}, "message": "Blueprint deleted successfully"}
+
+@router.post("/{blueprint_id}/validate", response_model=ValidationResultResponse)
+def validate_blueprint(blueprint_id: int, db: Session = Depends(get_db)):
+    service = ExamService(db)
+    validation_result = service.validate_blueprint(blueprint_id)
+    return {"data": validation_result, "message": "Blueprint validation completed"}
