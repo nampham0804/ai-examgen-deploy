@@ -66,6 +66,46 @@ npm.cmd run dev
 
 Phase 1I should integrate the pending-review handoff or review display flow without changing backend AI generation behavior.
 
+## Phase 1H.3: AI Generation Page UI Polish
+
+* Date: 2026-06-18
+* Owner: TV2
+
+### Purpose
+
+Improve readability and status clarity on the existing AI Generation page after the backend flow was connected.
+
+### Files Changed
+
+* `frontend/src/app/pages/AIGeneration.tsx`
+* `docs/tv2_frontend_progress_report.md`
+
+### APIs Connected
+
+No API contracts changed. The page still uses the Phase 1H endpoints for courses, learning outcomes, document upload, extract/chunk, generation, and pending-review question listing.
+
+### Manual Test
+
+1. Select a course and learning outcome.
+2. Upload a PDF or DOCX.
+3. Confirm the document summary shows `document_id`, status, `page_count`, `text_length`, `chunk_count`, and pending-review count.
+4. Run extraction and confirm the next-step text changes.
+5. Generate one MCQ.
+6. Confirm the latest generated question and saved `pending_review` question cards show readable question text, MCQ options, correct answer, explanation, and source chunk chips.
+7. Confirm no approve/reject/edit controls are shown.
+
+### Results
+
+The page now shows clearer document processing states, disabled-action reasons, improved empty states, compact source chunk badges, and separate MCQ/Essay detail sections.
+
+### Caveats
+
+The frontend remains display-only for generated questions. It does not perform quality validation, review approval, edit, retry, exam blueprint, or export behavior.
+
+### Next Step
+
+Phase 1I should integrate the pending-review handoff or review display flow when that ownership boundary is ready.
+
 ## Future Phase Template
 
 ## Phase X: <name>

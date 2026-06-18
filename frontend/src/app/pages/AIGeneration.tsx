@@ -22,6 +22,7 @@ const workflowSteps = [
 
 type QuestionType = 'mcq' | 'essay';
 type Difficulty = 'easy' | 'medium' | 'hard';
+type DocumentStatus = 'not_uploaded' | 'uploaded' | 'processing' | 'processed' | 'failed';
 
 export default function AIGeneration() {
   const { t } = useApp();
@@ -112,6 +113,16 @@ export default function AIGeneration() {
   const canGenerate =
     Boolean(documentUpload?.id && selectedLearningOutcomeId && documentExtract?.status === 'processed' && documentExtract.chunk_count > 0) &&
     !loading.generate;
+  const documentStatus = getDocumentStatus(documentUpload, documentExtract, loading.extract, errorMessage);
+  const uploadDisabledReason = getUploadDisabledReason(selectedCourseId, selectedFile, loading.upload);
+  const extractDisabledReason = getExtractDisabledReason(documentUpload, documentExtract, loading.extract);
+  const generateDisabledReason = getGenerateDisabledReason(
+    selectedCourseId,
+    selectedLearningOutcomeId,
+    documentUpload,
+    documentExtract,
+    loading.generate,
+  );
 
   const resetDocumentState = () => {
     setDocumentUpload(null);
@@ -137,7 +148,7 @@ export default function AIGeneration() {
       setDocumentExtract(null);
       setGeneratedQuestions([]);
       setPendingQuestions([]);
-      setSuccessMessage(`Uploaded document_id=${uploaded.id}`);
+      setSuccessMessage(`Upload successful: document_id=${uploaded.id}, status=${uploaded.status}`);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Upload failed');
     } finally {
@@ -153,7 +164,9 @@ export default function AIGeneration() {
     try {
       const extracted = await extractDocument(documentUpload.id);
       setDocumentExtract(extracted);
-      setSuccessMessage(`Processed document_id=${extracted.id}; chunk_count=${extracted.chunk_count}`);
+      setSuccessMessage(
+        `Extract successful: document_id=${extracted.id}, text_length=${extracted.text_length}, chunk_count=${extracted.chunk_count}`,
+      );
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Extract/chunk failed');
     } finally {
@@ -181,7 +194,7 @@ export default function AIGeneration() {
       setGeneratedQuestions(result.questions);
       setLastSourceChunkIds(result.source_chunk_ids);
       setGeneratedCount(result.generated);
-      setSuccessMessage(`Generated ${result.generated} question(s); source_chunk_ids=${formatIds(result.source_chunk_ids)}`);
+      setSuccessMessage(`Generation successful: generated=${result.generated}, source chunks=${result.source_chunk_ids.length}`);
       if (result.warnings.length > 0) setWarningMessage(result.warnings.join('; '));
       await refreshPendingQuestions(documentUpload.id, true);
     } catch (error) {
@@ -272,7 +285,7 @@ export default function AIGeneration() {
               Generation Complete
             </div>
             <p className="text-sm opacity-90">
-              generated={generatedCount}; pending_review={pendingQuestions.length}; source_chunk_ids={formatIds(lastSourceChunkIds)}
+              generated={generatedCount}; pending_review={pendingQuestions.length}; source chunks={lastSourceChunkIds.length}
             </p>
           </motion.div>
         )}
@@ -319,6 +332,9 @@ export default function AIGeneration() {
               ))}
             </select>
             {selectedCourseId && <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">course_id={selectedCourseId}</p>}
+            {!loading.courses && courses.length === 0 && (
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">No courses are available from the backend yet.</p>
+            )}
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
@@ -338,6 +354,9 @@ export default function AIGeneration() {
             </select>
             {selectedLearningOutcomeId && (
               <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">learning_outcome_id={selectedLearningOutcomeId}</p>
+            )}
+            {selectedCourseId && !loading.learningOutcomes && learningOutcomes.length === 0 && (
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">No learning outcomes are available for this course.</p>
             )}
           </div>
 
@@ -365,6 +384,7 @@ export default function AIGeneration() {
               {loading.upload ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               Upload Document
             </button>
+            {!canUpload && uploadDisabledReason && <DisabledReason>{uploadDisabledReason}</DisabledReason>}
             {documentUpload && (
               <div className="mt-3 text-xs text-gray-600 dark:text-gray-400 space-y-1">
                 <p>document_id={documentUpload.id}</p>
@@ -389,12 +409,16 @@ export default function AIGeneration() {
                 Extract
               </button>
             </div>
+            {!canExtract && extractDisabledReason && <DisabledReason>{extractDisabledReason}</DisabledReason>}
             {documentExtract && (
               <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                 <Metric label="status" value={documentExtract.status} />
                 <Metric label="text_length" value={String(documentExtract.text_length)} />
                 <Metric label="chunk_count" value={String(documentExtract.chunk_count)} />
               </div>
+            )}
+            {!documentUpload && (
+              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Upload a document before extraction.</p>
             )}
           </div>
 
@@ -478,20 +502,23 @@ export default function AIGeneration() {
               </>
             )}
           </button>
+          {!canGenerate && generateDisabledReason && <DisabledReason>{generateDisabledReason}</DisabledReason>}
         </div>
 
         <div className="lg:col-span-8 space-y-6">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Document Processing Summary</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <Metric label="document_id" value={documentUpload ? String(documentUpload.id) : '-'} />
-              <Metric label="chunk_count" value={documentExtract ? String(documentExtract.chunk_count) : '-'} />
-              <Metric label="pending_review" value={String(pendingQuestions.length)} />
-            </div>
-            <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-              Generated questions are based only on uploaded materials and retrieved chunks.
-            </p>
-          </div>
+          <DocumentSummary
+            documentUpload={documentUpload}
+            documentExtract={documentExtract}
+            documentStatus={documentStatus}
+            pendingCount={pendingQuestions.length}
+            nextAction={getNextActionMessage({
+              selectedCourseId,
+              selectedLearningOutcomeId,
+              documentUpload,
+              documentExtract,
+              documentStatus,
+            })}
+          />
 
           <QuestionPanel
             title="Generated Questions From Latest Request"
@@ -521,6 +548,47 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function DocumentSummary({
+  documentUpload,
+  documentExtract,
+  documentStatus,
+  pendingCount,
+  nextAction,
+}: {
+  documentUpload: DocumentUpload | null;
+  documentExtract: DocumentExtract | null;
+  documentStatus: DocumentStatus;
+  pendingCount: number;
+  nextAction: string;
+}) {
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h3 className="font-semibold text-gray-900 dark:text-white">Document Processing Summary</h3>
+        <StatusBadge status={documentStatus} />
+      </div>
+
+      <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
+        <Metric label="document_id" value={documentUpload ? String(documentUpload.id) : '-'} />
+        <Metric label="status" value={documentStatus.replace('_', ' ')} />
+        <Metric label="page_count" value={documentUpload?.page_count != null ? String(documentUpload.page_count) : 'n/a'} />
+        <Metric label="text_length" value={documentExtract ? formatNumber(documentExtract.text_length) : '-'} />
+        <Metric label="chunk_count" value={documentExtract ? String(documentExtract.chunk_count) : '-'} />
+        <Metric label="pending_review" value={String(pendingCount)} />
+      </div>
+
+      <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-200">
+        <p className="font-medium">Next step</p>
+        <p className="mt-1">{nextAction}</p>
+      </div>
+
+      <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+        Generated questions are based only on uploaded materials and retrieved chunks.
+      </p>
+    </div>
+  );
+}
+
 function QuestionPanel({
   title,
   questions,
@@ -534,7 +602,10 @@ function QuestionPanel({
 }) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{title}</h2>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
+        {!loading && <Badge tone="gray">count={questions.length}</Badge>}
+      </div>
 
       {loading && (
         <div className="flex items-center justify-center gap-2 py-10 text-gray-500 dark:text-gray-400">
@@ -544,10 +615,7 @@ function QuestionPanel({
       )}
 
       {!loading && questions.length === 0 && (
-        <div className="text-center py-12">
-          <Sparkles className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-500 dark:text-gray-400">{emptyText}</p>
-        </div>
+        <EmptyState text={emptyText} />
       )}
 
       {!loading && questions.length > 0 && (
@@ -560,58 +628,35 @@ function QuestionPanel({
               transition={{ delay: index * 0.05 }}
               className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-4"
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${difficultyBadge(question.difficulty)}`}>
-                      {question.difficulty}
-                    </span>
-                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
-                      {question.question_type}
-                    </span>
-                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-                      {question.status}
-                    </span>
-                  </div>
-                  <p className="text-gray-900 dark:text-white font-medium">{question.question_text}</p>
-                  {question.options && question.options.length > 0 && (
-                    <ul className="mt-3 space-y-1 text-sm text-gray-700 dark:text-gray-300">
-                      {question.options.map((option) => (
-                        <li key={option.label} className="flex gap-2">
-                          <span className="text-gray-400">{option.label}.</span>
-                          <span>{option.text}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {question.correct_answer && (
-                    <p className="mt-2 text-sm text-green-700 dark:text-green-400">correct_answer={question.correct_answer}</p>
-                  )}
-                  {question.suggested_answer && (
-                    <div className="mt-3 text-sm text-gray-700 dark:text-gray-300">
-                      <span className="font-semibold">Suggested answer: </span>
-                      {question.suggested_answer}
-                    </div>
-                  )}
-                  {question.grading_rubric && (
-                    <div className="mt-2 text-sm text-gray-700 dark:text-gray-300">
-                      <span className="font-semibold">Grading rubric: </span>
-                      {question.grading_rubric}
-                    </div>
-                  )}
-                </div>
-                <div className="text-right text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-                  <div>question_id={question.id}</div>
-                  <div>LO={question.learning_outcome_id}</div>
-                </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone="blue">{question.question_type}</Badge>
+                <Badge tone={difficultyTone(question.difficulty)}>{question.difficulty}</Badge>
+                <Badge tone={question.status === 'pending_review' ? 'amber' : 'gray'}>{question.status}</Badge>
+                <Badge tone="gray">question_id={question.id}</Badge>
+                <Badge tone="gray">learning_outcome_id={question.learning_outcome_id}</Badge>
               </div>
 
-              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
-                <div className="text-xs font-semibold text-blue-900 dark:text-blue-300 mb-1">Source and explanation</div>
-                <p className="text-xs text-blue-800 dark:text-blue-200">
-                  source_chunk_ids={formatIds(question.source_chunk_ids ?? [])}
-                </p>
-                {question.explanation && <p className="text-xs text-blue-800 dark:text-blue-200 mt-1">{question.explanation}</p>}
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Question</div>
+                <p className="mt-1 text-base font-medium leading-relaxed text-gray-900 dark:text-white">{question.question_text}</p>
+              </div>
+
+              {question.question_type === 'mcq' ? <McqDetails question={question} /> : <EssayDetails question={question} />}
+
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-blue-900 dark:text-blue-300">
+                  Source chunks
+                </div>
+                <SourceChunkChips ids={question.source_chunk_ids ?? []} />
+                {question.explanation && (
+                  <div className="mt-3 border-t border-blue-200 pt-3 text-sm leading-relaxed text-blue-900 dark:border-blue-800 dark:text-blue-200">
+                    <span className="font-semibold">Explanation: </span>
+                    {question.explanation}
+                  </div>
+                )}
+                {!question.explanation && (
+                  <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">No explanation/source note was returned.</p>
+                )}
               </div>
             </motion.div>
           ))}
@@ -621,13 +666,189 @@ function QuestionPanel({
   );
 }
 
-function difficultyBadge(difficulty: string): string {
-  if (difficulty === 'easy') return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400';
-  if (difficulty === 'medium') return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400';
-  return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400';
+function McqDetails({ question }: { question: GeneratedQuestion }) {
+  const hasOptions = question.options && question.options.length > 0;
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-700/40">
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Options</div>
+      {hasOptions ? (
+        <ul className="space-y-2 text-sm text-gray-800 dark:text-gray-200">
+          {question.options?.map((option, index) => (
+            <li key={`${option.label}-${index}`} className="flex gap-3 rounded-md bg-white px-3 py-2 dark:bg-gray-800">
+              <span className="font-semibold text-blue-600 dark:text-blue-400">{option.label || String.fromCharCode(65 + index)}.</span>
+              <span>{option.text}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-amber-700 dark:text-amber-300">MCQ options are missing from this response.</p>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Correct answer</span>
+        {question.correct_answer ? <Badge tone="green">{question.correct_answer}</Badge> : <Badge tone="amber">missing</Badge>}
+      </div>
+    </div>
+  );
 }
 
-function formatIds(ids: number[]): string {
-  if (ids.length === 0) return '[]';
-  return `[${ids.join(', ')}]`;
+function EssayDetails({ question }: { question: GeneratedQuestion }) {
+  return (
+    <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-700/40">
+      <TextBlock label="Suggested answer" value={question.suggested_answer} />
+      <TextBlock label="Grading rubric" value={question.grading_rubric} />
+    </div>
+  );
+}
+
+function TextBlock({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</div>
+      {value ? (
+        <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-gray-800 dark:text-gray-200">{value}</p>
+      ) : (
+        <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">Not provided.</p>
+      )}
+    </div>
+  );
+}
+
+function SourceChunkChips({ ids }: { ids: number[] }) {
+  if (ids.length === 0) return <Badge tone="amber">No source chunks</Badge>;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {ids.map((id) => (
+        <Badge key={id} tone="blue">
+          chunk {id}
+        </Badge>
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-gray-300 py-12 text-center dark:border-gray-700">
+      <Sparkles className="mx-auto mb-4 h-12 w-12 text-gray-300 dark:text-gray-600" />
+      <p className="text-sm text-gray-500 dark:text-gray-400">{text}</p>
+    </div>
+  );
+}
+
+function DisabledReason({ children }: { children: string }) {
+  return <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{children}</p>;
+}
+
+function StatusBadge({ status }: { status: DocumentStatus }) {
+  const labels: Record<DocumentStatus, string> = {
+    not_uploaded: 'No document',
+    uploaded: 'Uploaded',
+    processing: 'Processing',
+    processed: 'Processed',
+    failed: 'Failed',
+  };
+  return <Badge tone={statusTone(status)}>{labels[status]}</Badge>;
+}
+
+function Badge({ children, tone }: { children: string | number; tone: 'blue' | 'green' | 'amber' | 'red' | 'gray' }) {
+  return <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${badgeTone(tone)}`}>{children}</span>;
+}
+
+function badgeTone(tone: 'blue' | 'green' | 'amber' | 'red' | 'gray'): string {
+  if (tone === 'blue') return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+  if (tone === 'green') return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
+  if (tone === 'amber') return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
+  if (tone === 'red') return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+  return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+}
+
+function difficultyTone(difficulty: string): 'green' | 'amber' | 'red' {
+  if (difficulty === 'easy') return 'green';
+  if (difficulty === 'medium') return 'amber';
+  return 'red';
+}
+
+function statusTone(status: DocumentStatus): 'green' | 'amber' | 'red' | 'gray' | 'blue' {
+  if (status === 'processed') return 'green';
+  if (status === 'uploaded') return 'blue';
+  if (status === 'processing') return 'amber';
+  if (status === 'failed') return 'red';
+  return 'gray';
+}
+
+function getDocumentStatus(
+  documentUpload: DocumentUpload | null,
+  documentExtract: DocumentExtract | null,
+  isExtracting: boolean,
+  errorMessage: string,
+): DocumentStatus {
+  if (isExtracting) return 'processing';
+  if (documentExtract?.status === 'processed') return 'processed';
+  if (documentExtract?.status === 'failed') return 'failed';
+  if (documentUpload?.status === 'failed' || errorMessage.toLowerCase().includes('extract')) return 'failed';
+  if (documentUpload) return 'uploaded';
+  return 'not_uploaded';
+}
+
+function getNextActionMessage({
+  selectedCourseId,
+  selectedLearningOutcomeId,
+  documentUpload,
+  documentExtract,
+  documentStatus,
+}: {
+  selectedCourseId: string;
+  selectedLearningOutcomeId: string;
+  documentUpload: DocumentUpload | null;
+  documentExtract: DocumentExtract | null;
+  documentStatus: DocumentStatus;
+}): string {
+  if (!selectedCourseId) return 'Select a course first.';
+  if (!selectedLearningOutcomeId) return 'Select a learning outcome for the selected course.';
+  if (!documentUpload) return 'Upload a PDF or DOCX document for this course.';
+  if (documentStatus === 'failed') return 'Review the backend error, then upload again or retry extraction.';
+  if (documentStatus === 'uploaded') return 'Run Extract to create text and document chunks.';
+  if (documentStatus === 'processing') return 'Extraction and chunking are running.';
+  if (!documentExtract || documentExtract.chunk_count === 0) return 'Processed text has no chunks, so generation is blocked.';
+  return 'Optionally enter a topic, then generate questions from the processed chunks.';
+}
+
+function getUploadDisabledReason(selectedCourseId: string, selectedFile: File | null, isUploading: boolean): string {
+  if (isUploading) return 'Upload is in progress.';
+  if (!selectedCourseId) return 'Select a course before uploading.';
+  if (!selectedFile) return 'Choose a PDF or DOCX file to upload.';
+  return '';
+}
+
+function getExtractDisabledReason(
+  documentUpload: DocumentUpload | null,
+  documentExtract: DocumentExtract | null,
+  isExtracting: boolean,
+): string {
+  if (isExtracting) return 'Extraction is in progress.';
+  if (!documentUpload) return 'Upload a document before extraction.';
+  if (documentExtract?.status === 'processed') return 'Document is already processed.';
+  return '';
+}
+
+function getGenerateDisabledReason(
+  selectedCourseId: string,
+  selectedLearningOutcomeId: string,
+  documentUpload: DocumentUpload | null,
+  documentExtract: DocumentExtract | null,
+  isGenerating: boolean,
+): string {
+  if (isGenerating) return 'Generation is in progress. The frontend will not auto-retry this request.';
+  if (!selectedCourseId) return 'Select a course first.';
+  if (!selectedLearningOutcomeId) return 'Select a learning outcome first.';
+  if (!documentUpload) return 'Upload a document before generation.';
+  if (documentExtract?.status !== 'processed') return 'Extract and chunk the document before generation.';
+  if (documentExtract.chunk_count === 0) return 'The processed document has no chunks available.';
+  return '';
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat('en-US').format(value);
 }

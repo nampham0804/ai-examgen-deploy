@@ -739,6 +739,58 @@ Smoke helper docs/scripts:
 - Next step:
   - proceed to frontend integration for question listing/detail display.
 
+## Phase 1J: Backend Question Quality Validation Guard
+
+- Date: 2026-06-18
+- Owner: TV2 backend
+- Purpose: add a backend guard that rejects malformed or duplicate LLM-generated questions before saving.
+- Problem solved: generated questions were parsed and saved without a dedicated quality layer for malformed MCQs, missing essay fields, missing sources, or near-duplicate question text.
+- Implementation:
+  - Added safe JSON cleanup in the question parser, including `<think>...</think>` removal and guarded extraction of a single JSON question payload.
+  - Added partial parse behavior for generation so malformed individual questions become warnings when at least one valid question can proceed.
+  - Added a lightweight quality validation service for MCQ, essay, source chunk, and duplicate checks.
+  - Added a repository helper to load existing questions in the same course/document for duplicate detection.
+  - Integrated validation before `create_questions`; only quality-valid questions are saved as `pending_review`.
+  - If validation rejects every question, generation returns a clear project error instead of saving malformed data.
+  - Added validation metadata to the existing Langfuse trace metadata without changing Langfuse tracing internals.
+- Technologies:
+  - Python standard library JSON parsing
+  - Regex cleanup
+  - `difflib.SequenceMatcher` for conservative near-duplicate detection
+  - SQLAlchemy repository query
+- Files changed:
+  - `src/ai/parsers/question_parser.py`
+  - `src/services/question_quality_service.py`
+  - `src/services/ai_generation_service.py`
+  - `src/repositories/question_repository.py`
+  - `tests/test_ai/test_question_parser.py`
+  - `tests/test_services/test_question_quality_service.py`
+  - `docs/tv2_backend_progress_report.md`
+- Endpoints:
+  - No API contract changed.
+  - `POST /api/v1/ai/generate-questions` now returns warnings when some generated questions are rejected and returns an error if no valid questions remain.
+- Tests:
+  - ruff check on changed parser/service/repository/test files.
+  - `pytest tests -q`.
+  - Unit test for `<think>` cleanup before JSON.
+  - Unit test for malformed MCQ parse warning.
+  - Unit test for unsafe multiple JSON payload rejection.
+  - Unit tests for malformed MCQ, invalid source chunks, near-duplicate detection, and valid essay acceptance.
+  - Controlled service smoke with mocked LLM response confirming a valid MCQ is saved as `pending_review`.
+- Results:
+  - malformed MCQs with wrong option counts are rejected.
+  - MCQ correct answers can match either an option label or exact option text.
+  - essay questions require `suggested_answer` and `grading_rubric`.
+  - source chunks must be non-empty and come from retrieved chunk IDs.
+  - near-duplicate question text in the same document/course is rejected conservatively.
+  - valid remaining questions can still be saved while rejected questions are reported as warnings.
+- Caveats:
+  - duplicate detection is intentionally lightweight and deterministic; it does not use embeddings or vector search.
+  - the guard validates output quality structure, not pedagogical quality.
+  - provider-backed smoke was not rerun in this phase; unit tests cover the new guard behavior.
+- Next step:
+  - proceed with pending_review handoff/review workflow planning when ownership is clear.
+
 ## Next Task Plan
 
 Recommended next work:
