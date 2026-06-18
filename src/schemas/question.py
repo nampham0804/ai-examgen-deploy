@@ -30,3 +30,32 @@ class QuestionRead(BaseModel):
     generation_topic: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class QuestionListItemRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    course_id: int
+    document_id: int | None = None
+    learning_outcome_id: int
+    question_type: QuestionType
+    difficulty: Difficulty
+    status: QuestionStatus
+    question_text: str
+    options: list[dict[str, str]] | None = None
+    correct_answer: str | None = None
+    suggested_answer: str | None = None
+    grading_rubric: str | None = None
+    explanation: str | None = None
+    source_chunk_ids: list[int] | None = None
+    generation_topic: str | None = None
+    created_by_ai: bool
+    created_at: datetime
+
+
+class QuestionListRead(BaseModel):
+    items: list[QuestionListItemRead]
+    total: int
+    limit: int
+    offset: int
