@@ -25,7 +25,35 @@ class LLMConfig:
     temperature: float
 
 
+@dataclass(frozen=True)
+class LLMResponse:
+    content: str
+    provider: str
+    model: str
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
+
+
+@dataclass(frozen=True)
+class LLMProviderMetadata:
+    provider: str | None
+    model: str | None
+    temperature: float | None
+
+
 def chat_completion(*, messages: list[dict[str, str]], response_format_json: bool = True) -> str:
+    return chat_completion_with_metadata(
+        messages=messages,
+        response_format_json=response_format_json,
+    ).content
+
+
+def chat_completion_with_metadata(
+    *,
+    messages: list[dict[str, str]],
+    response_format_json: bool = True,
+) -> LLMResponse:
     config = _load_config()
     payload: dict = {
         "model": config.model,
@@ -57,9 +85,35 @@ def chat_completion(*, messages: list[dict[str, str]], response_format_json: boo
 
     try:
         data = response.json()
-        return data["choices"][0]["message"]["content"]
+        usage = data.get("usage") or {}
+        return LLMResponse(
+            content=data["choices"][0]["message"]["content"],
+            provider=config.provider,
+            model=config.model,
+            input_tokens=usage.get("prompt_tokens"),
+            output_tokens=usage.get("completion_tokens"),
+            total_tokens=usage.get("total_tokens"),
+        )
     except (KeyError, IndexError, TypeError, ValueError) as exc:
         raise LLMProviderError("LLM provider response did not match chat completions format", status_code=502) from exc
+
+
+def get_llm_provider_metadata() -> LLMProviderMetadata:
+    provider = _env("LLM_PROVIDER")
+    if not provider:
+        return LLMProviderMetadata(provider=None, model=None, temperature=_safe_temperature())
+
+    normalized_provider = provider.strip().lower()
+    try:
+        prefix = _provider_prefix(normalized_provider)
+    except LLMProviderError:
+        return LLMProviderMetadata(provider=normalized_provider, model=None, temperature=_safe_temperature())
+    model = _env(f"{prefix}_MODEL", *_legacy_names(normalized_provider, "MODEL"))
+    return LLMProviderMetadata(
+        provider=normalized_provider,
+        model=model,
+        temperature=_safe_temperature(),
+    )
 
 
 def _load_config() -> LLMConfig:
@@ -141,3 +195,10 @@ def _temperature() -> float:
         return float(raw_value)
     except ValueError as exc:
         raise LLMProviderError("LLM_TEMPERATURE must be a number") from exc
+
+
+def _safe_temperature() -> float | None:
+    try:
+        return _temperature()
+    except LLMProviderError:
+        return None

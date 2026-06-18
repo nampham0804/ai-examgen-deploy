@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+from time import perf_counter
+
 from sqlalchemy.orm import Session
 
 from src.ai.parsers.question_parser import QuestionParseError, parse_questions
 from src.ai.prompts.question_generation import build_question_generation_messages
-from src.ai.providers.llm_provider import LLMProviderError, chat_completion
+from src.ai.providers.llm_provider import (
+    LLMProviderError,
+    chat_completion_with_metadata,
+    get_llm_provider_metadata,
+)
 from src.models.document_chunk import DocumentChunk
+from src.observability.langfuse_tracer import LangfuseAIGenerationTracer
 from src.repositories.document_chunk_repository import list_document_chunks
 from src.repositories.document_repository import get_document
 from src.repositories.learning_outcome_repository import get_learning_outcome
@@ -76,15 +83,63 @@ def generate_questions_from_chunks(
         diversity_mode=diversity_mode,
     )
 
+    provider_metadata = get_llm_provider_metadata()
+    trace_metadata = {
+        "document_id": document_id,
+        "learning_outcome_id": learning_outcome_id,
+        "course_id": document.course_id,
+        "topic": topic,
+        "question_type": question_type,
+        "difficulty": difficulty,
+        "num_questions": requested_count,
+        "top_k": requested_top_k,
+        "source_chunk_ids": selected_chunk_ids,
+        "llm_provider": provider_metadata.provider,
+        "llm_model": provider_metadata.model,
+        "llm_temperature": provider_metadata.temperature,
+        "user_id": document.uploaded_by,
+    }
+    tracer = LangfuseAIGenerationTracer(
+        metadata=trace_metadata,
+        messages=messages,
+        llm_provider=provider_metadata.provider,
+        llm_model=provider_metadata.model,
+        user_id=document.uploaded_by,
+    )
+    tracer.start()
+
+    started_at = perf_counter()
+    llm_response = None
     try:
-        llm_content = chat_completion(messages=messages)
+        llm_response = chat_completion_with_metadata(messages=messages)
+        latency_ms = _latency_ms(started_at)
         parsed_questions = parse_questions(
-            llm_content,
+            llm_response.content,
             question_type=question_type,
             selected_chunk_ids=selected_chunk_ids,
             max_questions=requested_count,
         )
-    except (LLMProviderError, QuestionParseError) as exc:
+    except LLMProviderError as exc:
+        tracer.end_failed(
+            error_type=exc.error,
+            error_message=exc.detail,
+            latency_ms=_latency_ms(started_at),
+            parse_status="not_started",
+            output=llm_response.content if llm_response else None,
+            usage=_usage(llm_response),
+        )
+        tracer.flush()
+        raise AIGenerationError(exc.detail, status_code=exc.status_code, error=exc.error) from exc
+    except QuestionParseError as exc:
+        tracer.end_failed(
+            error_type=exc.error,
+            error_message=exc.detail,
+            latency_ms=_latency_ms(started_at),
+            parse_status="failed",
+            output=llm_response.content if llm_response else None,
+            usage=_usage(llm_response),
+        )
+        tracer.flush()
         raise AIGenerationError(exc.detail, status_code=exc.status_code, error=exc.error) from exc
 
     saved_questions = create_questions(
@@ -109,6 +164,15 @@ def generate_questions_from_chunks(
     warnings = []
     if len(saved_questions) < requested_count:
         warnings.append("LLM returned fewer valid questions than requested")
+    tracer.end_success(
+        output=llm_response.content,
+        usage=_usage(llm_response),
+        latency_ms=latency_ms,
+        generated_question_count=len(parsed_questions),
+        saved_question_count=len(saved_questions),
+    )
+    tracer.flush()
+    warnings.extend(tracer.warnings)
 
     return {
         "generated": len(saved_questions),
@@ -130,3 +194,17 @@ def _validate_generation_request(question_type: str, difficulty: str) -> None:
 def _chunks_by_ids(chunks: list[DocumentChunk], selected_chunk_ids: list[int]) -> list[DocumentChunk]:
     by_id = {chunk.id: chunk for chunk in chunks}
     return [by_id[chunk_id] for chunk_id in selected_chunk_ids if chunk_id in by_id]
+
+
+def _latency_ms(started_at: float) -> int:
+    return int((perf_counter() - started_at) * 1000)
+
+
+def _usage(llm_response) -> dict[str, int | None]:
+    if llm_response is None:
+        return {}
+    return {
+        "input_tokens": llm_response.input_tokens,
+        "output_tokens": llm_response.output_tokens,
+        "total_tokens": llm_response.total_tokens,
+    }
