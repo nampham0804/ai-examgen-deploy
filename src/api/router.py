@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from src.api.routes import courses
+from src.api.routes import courses, learning_outcomes
 
 router = APIRouter()
 
@@ -12,3 +12,4 @@ async def api_status():
 
 
 router.include_router(courses.router, prefix="/courses", tags=["courses"])
+router.include_router(learning_outcomes.router, tags=["learning-outcomes"])
