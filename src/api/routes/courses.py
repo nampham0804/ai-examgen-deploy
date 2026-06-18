@@ -52,11 +52,3 @@ def delete_course(course_id: int, db: Session = Depends(get_db)):
         "message": "Course deleted",
     }
 
-
-@router.get("/{course_id}/learning-outcomes", response_model=dict)
-def list_course_learning_outcomes(course_id: int, db: Session = Depends(get_db)):
-    course_service.get_course(db, course_id)
-    return {
-        "data": [],
-        "message": "Learning outcomes loaded",
-    }

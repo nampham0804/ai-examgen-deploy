@@ -11,6 +11,8 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { useEffect, useState } from 'react';
+import { analyticsApi, DashboardStats } from '../../api/analytics';
 
 const difficultyData = [
   { name: 'Easy', value: 245 },
@@ -71,12 +73,19 @@ const recentQuestions = [
 
 export default function Dashboard() {
   const { t } = useApp();
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+
+  useEffect(() => {
+    analyticsApi.getDashboardStats().then(res => {
+      setDashboardStats(res.data);
+    }).catch(err => console.error(err));
+  }, []);
 
   const stats = [
-    { label: t('dashboard.totalCourses'), value: '24', icon: BookOpen, color: 'bg-blue-500' },
-    { label: t('dashboard.totalLOs'), value: '156', icon: Target, color: 'bg-indigo-500' },
-    { label: t('dashboard.totalQuestions'), value: '790', icon: HelpCircle, color: 'bg-teal-500' },
-    { label: t('dashboard.totalExams'), value: '43', icon: FileText, color: 'bg-purple-500' },
+    { label: t('dashboard.totalCourses'), value: dashboardStats?.courses || '...', icon: BookOpen, color: 'bg-blue-500' },
+    { label: t('dashboard.totalLOs'), value: '156', icon: Target, color: 'bg-indigo-500' }, // LOs count usually derived differently or hardcoded for now
+    { label: t('dashboard.totalQuestions'), value: dashboardStats?.questions_total || '...', icon: HelpCircle, color: 'bg-teal-500' },
+    { label: t('dashboard.totalExams'), value: dashboardStats?.exams || '...', icon: FileText, color: 'bg-purple-500' },
   ];
 
   return (

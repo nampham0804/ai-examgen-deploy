@@ -21,6 +21,8 @@ let mockCourses: Course[] = [
   },
 ];
 
+export const MOCK_COURSES = mockCourses;
+
 const now = () => new Date().toISOString();
 
 export async function mockGetCourses(): Promise<Course[]> {
