@@ -1,36 +1,244 @@
 import { useApp } from '../context/AppContext';
-import { FileText, Download, Eye, CheckCircle, AlertCircle } from 'lucide-react';
-import { useState } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts';
+import { useNavigate } from 'react-router';
+import { FileText, Download, Eye, CheckCircle, AlertCircle, Loader2, List, Search, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { examApi } from '../../api/exams';
+import { blueprintApi } from '../../api/blueprints';
+import { Blueprint } from '../../types/exam';
+import { getCourses } from '../../api/courses';
+import { Course } from '../../types/course';
+import { Alert, AlertTitle, AlertDescription } from '../components/ui/alert';
+import ExamPreview from './ExamPreview';
 
-const difficultyData = [
-  { name: 'Easy', value: 10, color: '#10b981' },
-  { name: 'Medium', value: 15, color: '#f59e0b' },
-  { name: 'Hard', value: 5, color: '#ef4444' },
-];
+// Custom Searchable Combobox Component
+function SearchableCourseSelect({
+  courses,
+  selectedId,
+  onChange,
+  disabled
+}: {
+  courses: Course[],
+  selectedId: number,
+  onChange: (id: number) => void,
+  disabled: boolean
+}) {
+  const { t } = useApp();
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
-const examPreview = {
-  title: 'Midterm Exam - Machine Learning',
-  course: 'CS401',
-  duration: '120 minutes',
-  totalQuestions: 30,
-  totalPoints: 100,
-  questions: [
-    { id: 1, text: 'Explain the difference between supervised and unsupervised learning.', points: 10, type: 'Essay', difficulty: 'Medium' },
-    { id: 2, text: 'What is the purpose of a validation set in machine learning?', points: 5, type: 'Multiple Choice', difficulty: 'Easy' },
-    { id: 3, text: 'Analyze the impact of overfitting on model performance.', points: 15, type: 'Essay', difficulty: 'Hard' },
-  ],
-};
+  const selectedCourse = courses.find(c => c.id === selectedId);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredCourses = courses.filter(c =>
+    c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <div
+        className={`flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700 border ${isOpen ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-gray-200 dark:border-gray-600'} rounded-lg cursor-pointer ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+      >
+        <div className="truncate text-gray-900 dark:text-white">
+          {selectedCourse ? `${selectedCourse.code} - ${selectedCourse.name}` : 'Chọn môn học...'}
+        </div>
+        <ChevronDown className="w-4 h-4 text-gray-500" />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden">
+          <div className="p-2 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+            <Search className="w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              autoFocus
+              placeholder="Tìm môn học..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full bg-transparent border-none focus:outline-none text-sm text-gray-900 dark:text-white placeholder-gray-500"
+            />
+          </div>
+          <div className="max-h-60 overflow-y-auto">
+            {filteredCourses.length > 0 ? (
+              filteredCourses.map(c => (
+                <div
+                  key={c.id}
+                  className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-900 dark:text-gray-100 ${selectedId === c.id ? 'bg-blue-50 dark:bg-blue-900/40 font-medium' : ''}`}
+                  onClick={() => {
+                    onChange(c.id);
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  }}
+                >
+                  <span className="font-semibold">{c.code}</span> - {c.name}
+                </div>
+              ))
+            ) : (
+              <div className="p-3 text-sm text-gray-500 text-center">Không tìm thấy môn học</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ExamGenerator() {
   const { t } = useApp();
   const [step, setStep] = useState(1);
   const [examConfig, setExamConfig] = useState({
     title: 'Midterm Exam',
-    course: 'CS401',
-    duration: 120,
-    totalQuestions: 30,
+    courseId: 1, // mock CS401
+    duration: 60,
+    blueprintId: null as number | null,
   });
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [courseSearchTerm, setCourseSearchTerm] = useState('');
+
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const fetchedCourses = await getCourses();
+        setCourses(fetchedCourses);
+        if (fetchedCourses.length > 0) {
+          setExamConfig(prev => ({ ...prev, courseId: fetchedCourses[0].id }));
+        }
+      } catch (e) {
+        console.error("Failed to load courses", e);
+      }
+    };
+    fetchCourses();
+  }, []);
+
+  const filteredCourses = useMemo(() => {
+    return courses.filter(c =>
+      c.code.toLowerCase().includes(courseSearchTerm.toLowerCase()) ||
+      c.name.toLowerCase().includes(courseSearchTerm.toLowerCase())
+    );
+  }, [courseSearchTerm, courses]);
+
+  useEffect(() => {
+    // Fetch blueprints for the selected course
+    const fetchBlueprints = async () => {
+      try {
+        const res = await blueprintApi.getBlueprints(examConfig.courseId);
+        // Only validated blueprints can be used
+        const validBlueprints = res.data.filter(b => b.status === 'validated');
+        setBlueprints(validBlueprints);
+        // Do not auto-select blueprint so user has to choose
+      } catch (e) {
+        console.error('Failed to fetch blueprints', e);
+      }
+    };
+    fetchBlueprints();
+  }, [examConfig.courseId]);
+
+  // Compute difficulty distribution from selected blueprint
+  const selectedBlueprint = useMemo(() => {
+    if (!examConfig.blueprintId) return null;
+    return blueprints.find(b => b.id === examConfig.blueprintId) || null;
+  }, [examConfig.blueprintId, blueprints]);
+
+  const difficultyData = useMemo(() => {
+    if (!selectedBlueprint) {
+      return [
+        { name: 'Easy', value: 0, color: '#10b981' },
+        { name: 'Medium', value: 0, color: '#f59e0b' },
+        { name: 'Hard', value: 0, color: '#ef4444' },
+      ];
+    }
+    let easy = 0, medium = 0, hard = 0;
+    selectedBlueprint.items.forEach(item => {
+      easy += item.easy_count;
+      medium += item.medium_count;
+      hard += item.hard_count;
+    });
+    return [
+      { name: 'Easy', value: easy, color: '#10b981' },
+      { name: 'Medium', value: medium, color: '#f59e0b' },
+      { name: 'Hard', value: hard, color: '#ef4444' },
+    ];
+  }, [selectedBlueprint]);
+
+  const qualityInfo = useMemo(() => {
+    if (!selectedBlueprint) return null;
+    const totalQ = selectedBlueprint.total_questions;
+    const loCount = new Set(selectedBlueprint.items.map(i => i.learning_outcome_id)).size;
+    const typeCount = new Set(selectedBlueprint.items.map(i => i.question_type)).size;
+
+    let easy = 0, medium = 0, hard = 0;
+    selectedBlueprint.items.forEach(item => {
+      easy += item.easy_count;
+      medium += item.medium_count;
+      hard += item.hard_count;
+    });
+
+    // Balance score: check distribution evenness
+    const diffLevels = [easy, medium, hard].filter(v => v > 0).length;
+    const balanceScore = diffLevels >= 3 ? 'A+' : diffLevels === 2 ? 'B+' : 'C';
+
+    return {
+      totalQuestions: totalQ,
+      loCount,
+      typeCount,
+      loCoverage: selectedBlueprint.status === 'validated' ? 100 : 0,
+      blueprintAlignment: selectedBlueprint.status === 'validated' ? 100 : 0,
+      balanceScore,
+    };
+  }, [selectedBlueprint]);
+
+  const handleBlueprintChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setExamConfig({ ...examConfig, blueprintId: parseInt(e.target.value) });
+    setStep(2); // Step 2: Select Blueprint
+    setAlertInfo(null);
+  };
+
+  const handleGenerate = async () => {
+    setAlertInfo(null);
+    if (!examConfig.blueprintId) {
+      setAlertInfo({ type: 'error', message: "Vui lòng chọn Blueprint (Ma trận đề thi) hợp lệ đã được kiểm duyệt." });
+      return;
+    }
+
+    setIsLoading(true);
+    setStep(3); // Step 3: Generating
+    try {
+      // Create draft exam
+      const draftRes = await examApi.createExam({
+        course_id: examConfig.courseId,
+        blueprint_id: examConfig.blueprintId,
+        title: examConfig.title,
+        duration_minutes: examConfig.duration
+      });
+
+      // Generate questions
+      const examData = await examApi.generateExam(draftRes.data.id);
+
+      setAlertInfo({ type: 'success', message: "Tạo đề thi thành công! Đang hiển thị bản xem trước..." });
+
+      // Instead of navigating, display it inline
+      setGeneratedExamId(examData.data.id);
+      setStep(4); // Step 4: Review
+    } catch (e: any) {
+      console.error(e);
+      setAlertInfo({ type: 'error', message: e.message || "Tạo đề thi thất bại. Vui lòng kiểm tra lại Ngân hàng câu hỏi." });
+      setStep(2);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -58,11 +266,10 @@ export default function ExamGenerator() {
           {[1, 2, 3, 4].map((s, index) => (
             <div key={s} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
-                  step >= s 
-                    ? 'bg-blue-600 text-white' 
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${step >= s
+                    ? 'bg-blue-600 text-white'
                     : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-                }`}>
+                  }`}>
                   {step > s ? <CheckCircle className="w-6 h-6" /> : s}
                 </div>
                 <span className="text-xs mt-2 text-gray-600 dark:text-gray-400">
@@ -73,9 +280,8 @@ export default function ExamGenerator() {
                 </span>
               </div>
               {index < 3 && (
-                <div className={`h-1 flex-1 mx-2 ${
-                  step > s ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'
-                }`} />
+                <div className={`h-1 flex-1 mx-2 ${step > s ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'
+                  }`} />
               )}
             </div>
           ))}
@@ -87,7 +293,7 @@ export default function ExamGenerator() {
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('exam.configure')}</h2>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -105,16 +311,12 @@ export default function ExamGenerator() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Course
                 </label>
-                <select
-                  value={examConfig.course}
-                  onChange={(e) => setExamConfig({ ...examConfig, course: e.target.value })}
-                  className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="CS401">CS401 - Machine Learning</option>
-                  <option value="CS101">CS101 - Intro to CS</option>
-                  <option value="CS201">CS201 - Data Structures</option>
-                  <option value="MATH201">MATH201 - Linear Algebra</option>
-                </select>
+                <SearchableCourseSelect
+                  courses={courses}
+                  selectedId={examConfig.courseId}
+                  onChange={(id) => setExamConfig({ ...examConfig, courseId: id, blueprintId: null })}
+                  disabled={isLoading || courses.length === 0}
+                />
               </div>
 
               <div>
@@ -242,11 +444,10 @@ export default function ExamGenerator() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <span className="font-semibold text-gray-900 dark:text-white">Question {index + 1}</span>
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          q.difficulty === 'Easy' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
-                          q.difficulty === 'Medium' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' :
-                          'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${q.difficulty === 'Easy' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                            q.difficulty === 'Medium' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' :
+                              'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                          }`}>
                           {q.difficulty}
                         </span>
                         <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
@@ -277,7 +478,7 @@ export default function ExamGenerator() {
                   )}
                 </div>
               ))}
-              
+
               <div className="text-center py-4 text-gray-500 dark:text-gray-400">
                 ... and {examPreview.totalQuestions - examPreview.questions.length} more questions
               </div>
