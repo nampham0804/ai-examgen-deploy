@@ -95,6 +95,3 @@ exports/
 .claude/*.local.json
 .cursor/*.local.json
 .gemini/*.local.json
-
-# Note
-Note/

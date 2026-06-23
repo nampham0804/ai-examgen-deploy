@@ -1,16 +1,16 @@
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from typing import Optional
 
 from src.api.deps import get_db
-from src.services.exam_service import ExamService
 from src.schemas.blueprint import (
-    BlueprintCreate, 
-    BlueprintUpdate, 
-    BlueprintResponse, 
+    BlueprintCreate,
     BlueprintListResponse,
-    ValidationResultResponse
+    BlueprintResponse,
+    BlueprintUpdate,
+    ValidationResultResponse,
 )
+from src.services.exam_service import ExamService
 
 router = APIRouter(prefix="/blueprints", tags=["blueprints"])
 
@@ -21,13 +21,13 @@ def create_blueprint(blueprint_in: BlueprintCreate, db: Session = Depends(get_db
     return {"data": blueprint, "message": "Blueprint created successfully"}
 
 @router.get("", response_model=BlueprintListResponse)
-def get_blueprints(course_id: Optional[int] = None, db: Session = Depends(get_db)):
+def get_blueprints(course_id: int | None = None, db: Session = Depends(get_db)):
     service = ExamService(db)
     if course_id is not None:
         blueprints = service.get_blueprints_by_course(course_id)
     else:
         # In a real app, you might want to paginate or return all
-        blueprints = [] 
+        blueprints = []
     return {"data": blueprints, "message": "Blueprints retrieved successfully"}
 
 @router.get("/{blueprint_id}", response_model=BlueprintResponse)

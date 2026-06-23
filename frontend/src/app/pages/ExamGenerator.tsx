@@ -97,7 +97,12 @@ function SearchableCourseSelect({
 
 export default function ExamGenerator() {
   const { t } = useApp();
+  const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [alertInfo, setAlertInfo] = useState<{ type: 'success' | 'error' | 'info', message: string } | null>(null);
+  const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
+  const [generatedExamId, setGeneratedExamId] = useState<number | null>(null);
   const [examConfig, setExamConfig] = useState({
     title: 'Midterm Exam',
     courseId: 1, // mock CS401
@@ -248,16 +253,13 @@ export default function ExamGenerator() {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('exam.title')}</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">Create comprehensive exams from your question bank</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors">
-            <Eye className="w-5 h-5" />
-            {t('exam.preview')}
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-            <Download className="w-5 h-5" />
-            {t('exam.export')}
-          </button>
-        </div>
+        <button
+          onClick={() => navigate('/exam-list')}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium text-sm shadow-sm"
+        >
+          <List className="w-4 h-4" />
+          Quản lý đề thi
+        </button>
       </div>
 
       {/* Progress Steps */}
@@ -267,8 +269,8 @@ export default function ExamGenerator() {
             <div key={s} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${step >= s
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                   }`}>
                   {step > s ? <CheckCircle className="w-6 h-6" /> : s}
                 </div>
@@ -333,185 +335,173 @@ export default function ExamGenerator() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Total Questions
-                </label>
-                <input
-                  type="number"
-                  value={examConfig.totalQuestions}
-                  onChange={(e) => setExamConfig({ ...examConfig, totalQuestions: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {t('exam.selectBlueprint')}
                 </label>
-                <select className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option>Blueprint 1 - Standard Distribution</option>
-                  <option>Blueprint 2 - Advanced Focus</option>
-                  <option>Blueprint 3 - Practical Skills</option>
+                <select
+                  value={examConfig.blueprintId || ''}
+                  onChange={handleBlueprintChange}
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="" disabled>-- Chọn Ma trận (Đã kiểm duyệt) --</option>
+                  {blueprints.map(b => (
+                    <option key={b.id} value={b.id}>{b.title} ({b.total_questions} câu)</option>
+                  ))}
                 </select>
               </div>
 
               <button
-                onClick={() => setStep(Math.min(4, step + 1))}
-                className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+                onClick={handleGenerate}
+                disabled={isLoading || !examConfig.blueprintId}
+                className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
+                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
                 {t('exam.generate')}
               </button>
+
+              {alertInfo && (
+                <Alert variant={alertInfo.type === 'error' ? 'destructive' : 'default'} className={`mt-4 ${alertInfo.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : alertInfo.type === 'info' ? 'bg-blue-50 border-blue-200 text-blue-800' : ''}`}>
+                  {alertInfo.type === 'success' ? <CheckCircle className="w-4 h-4 text-green-600" /> : <AlertCircle className="w-4 h-4" />}
+                  <AlertTitle>{alertInfo.type === 'success' ? 'Thành công' : alertInfo.type === 'info' ? 'Thông báo' : 'Lỗi'}</AlertTitle>
+                  <AlertDescription>{alertInfo.message}</AlertDescription>
+                </Alert>
+              )}
             </div>
           </div>
 
-          {/* Difficulty Distribution */}
+          {/* Difficulty Distribution - Dynamic from Blueprint */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Difficulty Distribution</h2>
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={difficultyData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={70}
-                  dataKey="value"
-                >
-                  {difficultyData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+            {selectedBlueprint ? (
+              <>
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={difficultyData.filter(d => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={70}
+                      dataKey="value"
+                    >
+                      {difficultyData.filter(d => d.value > 0).map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="mt-3 space-y-1.5 text-sm">
+                  {difficultyData.map(d => (
+                    <div key={d.name} className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
+                        <span className="text-gray-600 dark:text-gray-400">{d.name}</span>
+                      </div>
+                      <span className="font-semibold text-gray-900 dark:text-white">{d.value} câu</span>
+                    </div>
                   ))}
-                </Pie>
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+                <FileText className="w-8 h-8 mb-2 opacity-30" />
+                <p className="text-sm">Chọn Blueprint để xem phân phối độ khó</p>
+              </div>
+            )}
           </div>
 
-          {/* Quality Validation */}
-          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
-            <div className="flex items-center gap-3 mb-3">
-              <CheckCircle className="w-6 h-6" />
-              <h3 className="font-semibold">Quality Validation</h3>
-            </div>
-            <div className="space-y-2 text-sm opacity-90">
-              <div className="flex items-center justify-between">
-                <span>LO Coverage</span>
-                <span className="font-semibold">96%</span>
+          {/* Quality Validation - Dynamic from Blueprint */}
+          {selectedBlueprint && qualityInfo ? (
+            <div className={`bg-gradient-to-br ${qualityInfo.loCoverage === 100 ? 'from-green-500 to-green-600' : 'from-amber-500 to-amber-600'} rounded-xl shadow-lg p-6 text-white`}>
+              <div className="flex items-center gap-3 mb-3">
+                <CheckCircle className="w-6 h-6" />
+                <h3 className="font-semibold">Quality Validation</h3>
               </div>
-              <div className="flex items-center justify-between">
-                <span>Blueprint Alignment</span>
-                <span className="font-semibold">100%</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Balance Score</span>
-                <span className="font-semibold">A+</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Exam Preview */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-8">
-            {/* Exam Header */}
-            <div className="border-b border-gray-200 dark:border-gray-700 pb-6 mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{examPreview.title}</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Course</div>
-                  <div className="font-semibold text-gray-900 dark:text-white">{examPreview.course}</div>
+              <div className="space-y-2 text-sm opacity-90">
+                <div className="flex items-center justify-between">
+                  <span>Tổng số câu</span>
+                  <span className="font-semibold">{qualityInfo.totalQuestions}</span>
                 </div>
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Duration</div>
-                  <div className="font-semibold text-gray-900 dark:text-white">{examPreview.duration}</div>
+                <div className="flex items-center justify-between">
+                  <span>Số LO phủ</span>
+                  <span className="font-semibold">{qualityInfo.loCount} LO</span>
                 </div>
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Questions</div>
-                  <div className="font-semibold text-gray-900 dark:text-white">{examPreview.totalQuestions}</div>
+                <div className="flex items-center justify-between">
+                  <span>Loại câu hỏi</span>
+                  <span className="font-semibold">{qualityInfo.typeCount === 2 ? 'MCQ + Essay' : qualityInfo.typeCount === 1 ? 'MCQ' : 'N/A'}</span>
                 </div>
-                <div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Total Points</div>
-                  <div className="font-semibold text-gray-900 dark:text-white">{examPreview.totalPoints}</div>
+                <div className="flex items-center justify-between">
+                  <span>Blueprint Alignment</span>
+                  <span className="font-semibold">{qualityInfo.blueprintAlignment}%</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Balance Score</span>
+                  <span className="font-semibold">{qualityInfo.balanceScore}</span>
                 </div>
               </div>
             </div>
 
             {/* Questions */}
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Sample Questions</h3>
-              {examPreview.questions.map((q, index) => (
-                <div key={q.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-                  <div className="flex items-start justify-between gap-4 mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="font-semibold text-gray-900 dark:text-white">Question {index + 1}</span>
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${q.difficulty === 'Easy' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
-                            q.difficulty === 'Medium' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' :
-                              'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                          }`}>
-                          {q.difficulty}
-                        </span>
-                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
-                          {q.type}
-                        </span>
-                      </div>
-                      <p className="text-gray-900 dark:text-white">{q.text}</p>
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Sample Questions</h3>
+            {examPreview.questions.map((q, index) => (
+              <div key={q.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="font-semibold text-gray-900 dark:text-white">Question {index + 1}</span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${q.difficulty === 'Easy' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                        q.difficulty === 'Medium' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' :
+                          'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                        }`}>
+                        {q.difficulty}
+                      </span>
+                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                        {q.type}
+                      </span>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm text-gray-600 dark:text-gray-400">Points</div>
-                      <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{q.points}</div>
+                    <p className="text-gray-900 dark:text-white">{q.text}</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Points</div>
+                    <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{q.points}</div>
+                  </div>
+                </div>
+                {q.type === 'Multiple Choice' && (
+                  <div className="mt-4 space-y-2 pl-4">
+                    <div className="text-sm text-gray-700 dark:text-gray-300">A. Option 1</div>
+                    <div className="text-sm text-gray-700 dark:text-gray-300">B. Option 2</div>
+                    <div className="text-sm text-gray-700 dark:text-gray-300">C. Option 3</div>
+                    <div className="text-sm text-gray-700 dark:text-gray-300">D. Option 4</div>
+                  </div>
+                )}
+                {q.type === 'Essay' && (
+                  <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded border border-gray-200 dark:border-gray-600">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 italic">
+                      [Answer space for students]
                     </div>
                   </div>
-                  {q.type === 'Multiple Choice' && (
-                    <div className="mt-4 space-y-2 pl-4">
-                      <div className="text-sm text-gray-700 dark:text-gray-300">A. Option 1</div>
-                      <div className="text-sm text-gray-700 dark:text-gray-300">B. Option 2</div>
-                      <div className="text-sm text-gray-700 dark:text-gray-300">C. Option 3</div>
-                      <div className="text-sm text-gray-700 dark:text-gray-300">D. Option 4</div>
-                    </div>
-                  )}
-                  {q.type === 'Essay' && (
-                    <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded border border-gray-200 dark:border-gray-600">
-                      <div className="text-sm text-gray-600 dark:text-gray-400 italic">
-                        [Answer space for students]
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-
-              <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-                ... and {examPreview.totalQuestions - examPreview.questions.length} more questions
+                )}
               </div>
-            </div>
-          </div>
+            ))}
 
-          {/* Export Options */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Export Options</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <button className="flex flex-col items-center gap-3 p-6 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group">
-                <FileText className="w-8 h-8 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
-                <div className="text-center">
-                  <div className="font-semibold text-gray-900 dark:text-white">PDF</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Printable format</div>
-                </div>
-              </button>
-              <button className="flex flex-col items-center gap-3 p-6 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group">
-                <FileText className="w-8 h-8 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
-                <div className="text-center">
-                  <div className="font-semibold text-gray-900 dark:text-white">Word</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Editable document</div>
-                </div>
-              </button>
-              <button className="flex flex-col items-center gap-3 p-6 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group">
-                <FileText className="w-8 h-8 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
-                <div className="text-center">
-                  <div className="font-semibold text-gray-900 dark:text-white">JSON</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Data format</div>
-                </div>
-              </button>
+            <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+              ... and {examPreview.totalQuestions - examPreview.questions.length} more questions
             </div>
           </div>
+          ) : (
+          <div className="bg-slate-50 dark:bg-gray-800/50 rounded-xl shadow-inner border border-dashed border-slate-300 dark:border-gray-700 p-12 flex flex-col items-center justify-center text-center h-full min-h-[400px]">
+            <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-4">
+              <FileText className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-medium text-slate-800 dark:text-slate-200 mb-2">Đề thi sẽ được hiển thị sau khi tạo</h3>
+            <p className="text-slate-500 dark:text-slate-400 max-w-sm">
+              Vui lòng thiết lập cấu hình ở bên trái và nhấn nút "Tạo đề thi" để AI tự động lấy câu hỏi ngẫu nhiên từ ngân hàng dựa trên ma trận (Blueprint).
+            </p>
+          </div>
+          )}
         </div>
       </div>
     </div>

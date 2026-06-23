@@ -496,6 +496,17 @@ export default function ExamBlueprint() {
               {t('blueprint.autoBtn') || 'Phân bổ tự động'}
             </button>
           </div>
+          {!validationResult.is_valid && (
+            <div className="mt-2 pl-8">
+              <ul className="list-disc text-sm text-red-700 dark:text-red-300 space-y-1">
+                {validationResult.details.filter(d => !d.is_valid).map((detail, idx) => (
+                  <li key={idx}>
+                    <span className="font-medium">{detail.learning_outcome_code}</span> ({t(QUESTION_TYPES.find(q => q.value === detail.question_type)?.labelKey || detail.question_type)}): {detail.missing}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 

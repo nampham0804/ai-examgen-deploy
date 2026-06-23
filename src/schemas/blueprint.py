@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional
 from datetime import datetime
+
+from pydantic import BaseModel, Field
+
 
 class BlueprintItemBase(BaseModel):
     learning_outcome_id: int
@@ -24,21 +25,21 @@ class BlueprintBase(BaseModel):
     title: str
 
 class BlueprintCreate(BlueprintBase):
-    items: List[BlueprintItemCreate]
+    items: list[BlueprintItemCreate]
 
 class BlueprintUpdate(BaseModel):
-    title: Optional[str] = None
-    status: Optional[str] = None
-    items: Optional[List[BlueprintItemCreate]] = None
+    title: str | None = None
+    status: str | None = None
+    items: list[BlueprintItemCreate] | None = None
 
 class BlueprintDataResponse(BlueprintBase):
     id: int
     total_questions: int
     status: str
-    created_by: Optional[int] = None
+    created_by: int | None = None
     created_at: datetime
     updated_at: datetime
-    items: List[BlueprintItemResponse] = []
+    items: list[BlueprintItemResponse] = []
 
     class Config:
         from_attributes = True
@@ -48,7 +49,7 @@ class BlueprintResponse(BaseModel):
     message: str
 
 class BlueprintListResponse(BaseModel):
-    data: List[BlueprintDataResponse]
+    data: list[BlueprintDataResponse]
     message: str
 
 class ValidationDetail(BaseModel):
@@ -62,12 +63,12 @@ class ValidationDetail(BaseModel):
     hard_required: int
     hard_available: int
     is_valid: bool
-    missing: Optional[str] = None
+    missing: str | None = None
 
 class ValidationResultData(BaseModel):
     is_valid: bool
     total_required: int
-    details: List[ValidationDetail]
+    details: list[ValidationDetail]
 
 class ValidationResultResponse(BaseModel):
     data: ValidationResultData

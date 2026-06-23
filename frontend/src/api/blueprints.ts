@@ -1,11 +1,12 @@
-import { BlueprintCreatePayload, BlueprintUpdatePayload, BlueprintResponse, BlueprintListResponse, Blueprint } from '../types/exam';
-import { MOCK_BLUEPRINT } from '../mocks/exam';
+import { BlueprintCreatePayload, BlueprintUpdatePayload, BlueprintResponse, BlueprintListResponse, Blueprint, ValidationResultResponse, ValidationDetail } from '../types/exam';
+import { MOCK_BLUEPRINTS } from '../mocks/exam';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
+const API_ROOT = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
 // In-memory mock store for session persistence
-let mockBlueprints: Blueprint[] = [MOCK_BLUEPRINT];
+let mockBlueprints: Blueprint[] = [...MOCK_BLUEPRINTS];
 
 export const blueprintApi = {
   async getBlueprints(courseId: number): Promise<BlueprintListResponse> {
@@ -18,7 +19,7 @@ export const blueprintApi = {
         });
       }, 500));
     }
-    const response = await fetch(`${API_BASE_URL}/blueprints?course_id=${courseId}`);
+    const response = await fetch(`${API_ROOT}/blueprints?course_id=${courseId}`);
     if (!response.ok) throw new Error('Failed to fetch blueprints');
     return response.json();
   },
@@ -34,7 +35,7 @@ export const blueprintApi = {
         }
       }, 500));
     }
-    const response = await fetch(`${API_BASE_URL}/blueprints/${id}`);
+    const response = await fetch(`${API_ROOT}/blueprints/${id}`);
     if (!response.ok) throw new Error('Failed to fetch blueprint');
     return response.json();
   },
@@ -63,7 +64,7 @@ export const blueprintApi = {
         });
       }, 800));
     }
-    const response = await fetch(`${API_BASE_URL}/blueprints`, {
+    const response = await fetch(`${API_ROOT}/blueprints`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -102,7 +103,7 @@ export const blueprintApi = {
         });
       }, 800));
     }
-    const response = await fetch(`${API_BASE_URL}/blueprints/${id}`, {
+    const response = await fetch(`${API_ROOT}/blueprints/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -120,10 +121,49 @@ export const blueprintApi = {
         resolve({ message: "Mock blueprint deleted successfully" });
       }, 500));
     }
-    const response = await fetch(`${API_BASE_URL}/blueprints/${id}`, {
+    const response = await fetch(`${API_ROOT}/blueprints/${id}`, {
       method: 'DELETE',
     });
     if (!response.ok) throw new Error('Failed to delete blueprint');
+    return response.json();
+  },
+
+  async validateBlueprint(id: number): Promise<ValidationResultResponse> {
+    if (USE_MOCK) {
+      return new Promise((resolve, reject) => setTimeout(() => {
+        const index = mockBlueprints.findIndex(b => b.id === id);
+        if (index === -1) return reject(new Error("Blueprint not found"));
+        const blueprint = mockBlueprints[index];
+        
+        const details: ValidationDetail[] = blueprint.items.map(item => ({
+          learning_outcome_id: item.learning_outcome_id,
+          learning_outcome_code: `LO${item.learning_outcome_id}`,
+          question_type: item.question_type,
+          easy_required: item.easy_count,
+          easy_available: item.easy_count, // Mock: always have enough
+          medium_required: item.medium_count,
+          medium_available: item.medium_count,
+          hard_required: item.hard_count,
+          hard_available: item.hard_count,
+          is_valid: true,
+        }));
+
+        blueprint.status = 'validated'; // Update status
+
+        resolve({
+          data: {
+            is_valid: true,
+            total_required: blueprint.total_questions,
+            details
+          },
+          message: "Mock blueprint validation completed"
+        });
+      }, 500));
+    }
+    const response = await fetch(`${API_ROOT}/blueprints/${id}/validate`, {
+      method: 'POST',
+    });
+    if (!response.ok) throw new Error('Failed to validate blueprint');
     return response.json();
   }
 };

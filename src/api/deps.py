@@ -1,12 +1,3 @@
-from typing import Generator
-# Assuming you will set up a SessionLocal in your database.py later.
-# For now, this is a placeholder dependency.
-# from src.repositories.database import SessionLocal
+from src.repositories.database import get_db
 
-def get_db() -> Generator:
-    # try:
-    #     db = SessionLocal()
-    #     yield db
-    # finally:
-    #     db.close()
-    yield None
+__all__ = ["get_db"]
