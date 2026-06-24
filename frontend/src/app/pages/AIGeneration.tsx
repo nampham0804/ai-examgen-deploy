@@ -615,7 +615,6 @@ export default function AIGeneration() {
               <div className="space-y-2">
                 {existingDocuments.map((document) => {
                   const isSelected = selectedDocuments.some((item) => item.id === document.id);
-                  const isActive = activeDocument?.id === document.id;
                   return (
                     <label
                       key={document.id}
@@ -642,7 +641,6 @@ export default function AIGeneration() {
                         </div>
                         <div className="flex flex-col items-end gap-1">
                           <Badge tone={statusTone(document.status)}>{document.status}</Badge>
-                          {isActive && <Badge tone="blue">active</Badge>}
                         </div>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-400">
@@ -661,7 +659,7 @@ export default function AIGeneration() {
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Active Documents</h3>
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Selected Documents</h3>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     selected={selectedDocuments.length}; processed={selectedProcessedDocuments.length}
                   </p>
@@ -1064,17 +1062,20 @@ function SourceEvidence({
         const sourceDocument = group.documentId === null ? null : activeDocumentsById.get(group.documentId);
         return (
           <div key={group.documentId ?? 'unknown'} className="rounded-md border border-blue-200 bg-white p-3 dark:border-blue-800 dark:bg-gray-800">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <Badge tone="gray">{sourceDocument?.file_name ?? 'Unknown source document'}</Badge>
-              <Badge tone="blue">{group.items.length} chunk{group.items.length === 1 ? '' : 's'}</Badge>
+            <div className="mb-2">
+              <p className="truncate text-sm font-semibold text-blue-950 dark:text-blue-100">
+                {sourceDocument?.file_name ?? 'Unknown source document'}
+              </p>
             </div>
             <div className="space-y-2">
               {group.items.map(({ id, chunk }) => (
                 <div key={id} className="rounded border border-blue-100 bg-blue-50/70 p-2 dark:border-blue-900/60 dark:bg-blue-950/30">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone="blue">chunk {chunk ? chunk.chunk_index : id}</Badge>
-                    {chunk?.title && <Badge tone="gray">{chunk.title}</Badge>}
+                    <Badge tone="blue">Chunk #{chunk ? chunk.chunk_index : id}</Badge>
                   </div>
+                  {chunk?.title && (
+                    <p className="mt-2 text-xs font-medium text-blue-900 dark:text-blue-100">{chunk.title}</p>
+                  )}
                   {chunk?.section_path && (
                     <p className="mt-2 text-xs text-blue-800 dark:text-blue-200">Section: {chunk.section_path}</p>
                   )}
