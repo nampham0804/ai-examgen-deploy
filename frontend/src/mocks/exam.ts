@@ -83,6 +83,46 @@ export const MOCK_BLUEPRINTS: Blueprint[] = [
         hard_count: 0
       }
     ]
+  },
+  {
+    id: 3,
+    course_id: 2,
+    title: "Đề giữa kỳ - Data Structures",
+    status: "validated",
+    total_questions: 10,
+    created_at: "2026-06-18T10:00:00Z",
+    updated_at: "2026-06-18T10:00:00Z",
+    items: [
+      {
+        id: 4,
+        blueprint_id: 3,
+        learning_outcome_id: 6,
+        question_type: "mcq",
+        easy_count: 3,
+        medium_count: 2,
+        hard_count: 1
+      }
+    ]
+  },
+  {
+    id: 4,
+    course_id: 3,
+    title: "Đề cuối kỳ - Database Systems",
+    status: "validated",
+    total_questions: 20,
+    created_at: "2026-06-19T10:00:00Z",
+    updated_at: "2026-06-19T10:00:00Z",
+    items: [
+      {
+        id: 5,
+        blueprint_id: 4,
+        learning_outcome_id: 9,
+        question_type: "mcq",
+        easy_count: 5,
+        medium_count: 5,
+        hard_count: 2
+      }
+    ]
   }
 ];
 
@@ -124,7 +164,7 @@ export const MOCK_EXAM_PREVIEW: ExamPreviewData = {
   course_name: "Machine Learning",
   title: "Đề thi giữa kỳ CS401 - 01",
   duration_minutes: 60,
-  total_questions: 2,
+  total_questions: 6,
   questions: [
     {
       id: 1001,
@@ -154,6 +194,69 @@ export const MOCK_EXAM_PREVIEW: ExamPreviewData = {
       rubric: "So sánh dữ liệu đầu vào; mục tiêu; ví dụ thuật toán.",
       difficulty: "medium",
       learning_outcome_code: "LO1"
+    },
+    {
+      id: 1003,
+      exam_id: 7,
+      question_id: 303,
+      order_index: 3,
+      type: "Multiple Choice",
+      text: "Thuật toán nào sau đây thuộc nhóm Unsupervised Learning?",
+      options: [
+        "Linear Regression",
+        "K-Means Clustering",
+        "Decision Tree",
+        "Random Forest"
+      ],
+      correct_answer: "K-Means Clustering",
+      difficulty: "medium",
+      learning_outcome_code: "LO2"
+    },
+    {
+      id: 1004,
+      exam_id: 7,
+      question_id: 304,
+      order_index: 4,
+      type: "Multiple Choice",
+      text: "Trong Neural Network, hàm kích hoạt (activation function) nào thường được dùng ở hidden layer?",
+      options: [
+        "Linear",
+        "ReLU",
+        "Softmax",
+        "Identity"
+      ],
+      correct_answer: "ReLU",
+      difficulty: "medium",
+      learning_outcome_code: "LO3"
+    },
+    {
+      id: 1005,
+      exam_id: 7,
+      question_id: 305,
+      order_index: 5,
+      type: "Multiple Choice",
+      text: "Overfitting xảy ra khi nào?",
+      options: [
+        "Mô hình học quá tốt trên tập huấn luyện nhưng dự đoán kém trên tập kiểm tra",
+        "Mô hình dự đoán tốt trên cả tập huấn luyện và tập kiểm tra",
+        "Mô hình không thể học được dữ liệu",
+        "Mô hình quá đơn giản"
+      ],
+      correct_answer: "Mô hình học quá tốt trên tập huấn luyện nhưng dự đoán kém trên tập kiểm tra",
+      difficulty: "easy",
+      learning_outcome_code: "LO1"
+    },
+    {
+      id: 1006,
+      exam_id: 7,
+      question_id: 306,
+      order_index: 6,
+      type: "Essay",
+      text: "Trình bày cách hoạt động của thuật toán Gradient Descent.",
+      sample_answer: "Gradient Descent là thuật toán tối ưu hóa lặp để tìm giá trị cực tiểu của hàm mất mát. Ở mỗi bước, thuật toán tính đạo hàm của hàm mất mát theo các trọng số và cập nhật trọng số ngược hướng với gradient.",
+      rubric: "Nêu định nghĩa; Nêu công thức cập nhật; Giải thích ý nghĩa của learning rate.",
+      difficulty: "hard",
+      learning_outcome_code: "LO4"
     }
   ]
 };
@@ -193,6 +296,30 @@ export const MOCK_EXAMS: Exam[] = [
     status: "draft",
     created_at: "2026-06-18T08:00:00Z",
     updated_at: "2026-06-18T08:00:00Z",
+    questions: []
+  },
+  {
+    id: 10,
+    course_id: 2,
+    blueprint_id: 3,
+    title: "Đề thi giữa kỳ Data Structures - 01",
+    duration_minutes: 60,
+    total_questions: 10,
+    status: "generated",
+    created_at: "2026-06-18T10:00:00Z",
+    updated_at: "2026-06-18T10:00:00Z",
+    questions: []
+  },
+  {
+    id: 11,
+    course_id: 3,
+    blueprint_id: 4,
+    title: "Đề thi cuối kỳ Database Systems - 01",
+    duration_minutes: 90,
+    total_questions: 20,
+    status: "generated",
+    created_at: "2026-06-19T10:00:00Z",
+    updated_at: "2026-06-19T10:00:00Z",
     questions: []
   }
 ];

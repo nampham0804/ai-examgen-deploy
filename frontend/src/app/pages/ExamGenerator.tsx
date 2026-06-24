@@ -413,7 +413,7 @@ export default function ExamGenerator() {
           </div>
 
           {/* Quality Validation - Dynamic from Blueprint */}
-          {selectedBlueprint && qualityInfo ? (
+          {selectedBlueprint && qualityInfo && (
             <div className={`bg-gradient-to-br ${qualityInfo.loCoverage === 100 ? 'from-green-500 to-green-600' : 'from-amber-500 to-amber-600'} rounded-xl shadow-lg p-6 text-white`}>
               <div className="flex items-center gap-3 mb-3">
                 <CheckCircle className="w-6 h-6" />
@@ -442,65 +442,23 @@ export default function ExamGenerator() {
                 </div>
               </div>
             </div>
+          )}
+        </div>
 
-            {/* Questions */}
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Sample Questions</h3>
-            {examPreview.questions.map((q, index) => (
-              <div key={q.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-                <div className="flex items-start justify-between gap-4 mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="font-semibold text-gray-900 dark:text-white">Question {index + 1}</span>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${q.difficulty === 'Easy' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
-                        q.difficulty === 'Medium' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' :
-                          'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                        }`}>
-                        {q.difficulty}
-                      </span>
-                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
-                        {q.type}
-                      </span>
-                    </div>
-                    <p className="text-gray-900 dark:text-white">{q.text}</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Points</div>
-                    <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{q.points}</div>
-                  </div>
-                </div>
-                {q.type === 'Multiple Choice' && (
-                  <div className="mt-4 space-y-2 pl-4">
-                    <div className="text-sm text-gray-700 dark:text-gray-300">A. Option 1</div>
-                    <div className="text-sm text-gray-700 dark:text-gray-300">B. Option 2</div>
-                    <div className="text-sm text-gray-700 dark:text-gray-300">C. Option 3</div>
-                    <div className="text-sm text-gray-700 dark:text-gray-300">D. Option 4</div>
-                  </div>
-                )}
-                {q.type === 'Essay' && (
-                  <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded border border-gray-200 dark:border-gray-600">
-                    <div className="text-sm text-gray-600 dark:text-gray-400 italic">
-                      [Answer space for students]
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-
-            <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-              ... and {examPreview.totalQuestions - examPreview.questions.length} more questions
-            </div>
-          </div>
+        {/* Right Panel - Exam Preview */}
+        <div className="lg:col-span-2">
+          {step === 4 && generatedExamId ? (
+            <ExamPreview examId={generatedExamId} onSaved={() => setStep(1)} />
           ) : (
-          <div className="bg-slate-50 dark:bg-gray-800/50 rounded-xl shadow-inner border border-dashed border-slate-300 dark:border-gray-700 p-12 flex flex-col items-center justify-center text-center h-full min-h-[400px]">
-            <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-4">
-              <FileText className="w-8 h-8" />
+            <div className="bg-slate-50 dark:bg-gray-800/50 rounded-xl shadow-inner border border-dashed border-slate-300 dark:border-gray-700 p-12 flex flex-col items-center justify-center text-center h-full min-h-[400px]">
+              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-4">
+                <FileText className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-medium text-slate-800 dark:text-slate-200 mb-2">Đề thi sẽ được hiển thị sau khi tạo</h3>
+              <p className="text-slate-500 dark:text-slate-400 max-w-sm">
+                Vui lòng thiết lập cấu hình ở bên trái và nhấn nút "Tạo đề thi" để AI tự động lấy câu hỏi ngẫu nhiên từ ngân hàng dựa trên ma trận (Blueprint).
+              </p>
             </div>
-            <h3 className="text-xl font-medium text-slate-800 dark:text-slate-200 mb-2">Đề thi sẽ được hiển thị sau khi tạo</h3>
-            <p className="text-slate-500 dark:text-slate-400 max-w-sm">
-              Vui lòng thiết lập cấu hình ở bên trái và nhấn nút "Tạo đề thi" để AI tự động lấy câu hỏi ngẫu nhiên từ ngân hàng dựa trên ma trận (Blueprint).
-            </p>
-          </div>
           )}
         </div>
       </div>

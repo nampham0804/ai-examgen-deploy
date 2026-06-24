@@ -1,81 +1,10 @@
 import { useApp } from '../context/AppContext';
 import { Search, Filter, Tag, Eye, Edit, Trash2, Download, CheckSquare } from 'lucide-react';
-import { useState } from 'react';
-
-const questions = [
-  {
-    id: 1,
-    question: 'Explain the concept of polymorphism in object-oriented programming.',
-    course: 'CS101',
-    lo: 'LO1.3',
-    type: 'Essay',
-    difficulty: 'Medium',
-    status: 'approved',
-    tags: ['OOP', 'Polymorphism'],
-    createdBy: 'AI',
-    date: '2026-06-10',
-  },
-  {
-    id: 2,
-    question: 'Which sorting algorithm has the best average-case time complexity?',
-    course: 'CS201',
-    lo: 'LO2.1',
-    type: 'Multiple Choice',
-    difficulty: 'Easy',
-    status: 'approved',
-    tags: ['Sorting', 'Complexity'],
-    createdBy: 'Manual',
-    date: '2026-06-08',
-  },
-  {
-    id: 3,
-    question: 'Analyze the impact of learning rate on neural network training.',
-    course: 'CS401',
-    lo: 'LO4.2',
-    type: 'Essay',
-    difficulty: 'Hard',
-    status: 'pending',
-    tags: ['Neural Networks', 'Hyperparameters'],
-    createdBy: 'AI',
-    date: '2026-06-11',
-  },
-  {
-    id: 4,
-    question: 'What is the determinant of a 2x2 matrix [[a, b], [c, d]]?',
-    course: 'MATH201',
-    lo: 'LO3.1',
-    type: 'Multiple Choice',
-    difficulty: 'Easy',
-    status: 'approved',
-    tags: ['Linear Algebra', 'Matrices'],
-    createdBy: 'Manual',
-    date: '2026-06-05',
-  },
-  {
-    id: 5,
-    question: 'Implement a binary search tree and explain its time complexity.',
-    course: 'CS201',
-    lo: 'LO2.2',
-    type: 'Essay',
-    difficulty: 'Hard',
-    status: 'approved',
-    tags: ['Data Structures', 'Trees'],
-    createdBy: 'AI',
-    date: '2026-06-09',
-  },
-  {
-    id: 6,
-    question: 'True or False: Overfitting occurs when a model performs well on training data but poorly on test data.',
-    course: 'CS401',
-    lo: 'LO4.2',
-    type: 'True/False',
-    difficulty: 'Easy',
-    status: 'rejected',
-    tags: ['Machine Learning', 'Evaluation'],
-    createdBy: 'AI',
-    date: '2026-06-07',
-  },
-];
+import { useState, useEffect } from 'react';
+import { getQuestions } from '../../api/questions';
+import { getCourses } from '../../api/courses';
+import type { Question } from '../../types/question';
+import type { Course } from '../../types/course';
 
 export default function QuestionBank() {
   const { t } = useApp();
@@ -84,32 +13,58 @@ export default function QuestionBank() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterDifficulty, setFilterDifficulty] = useState('all');
   const [selectedQuestions, setSelectedQuestions] = useState<number[]>([]);
+  
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [qRes, cRes] = await Promise.all([
+          getQuestions({ page_size: 100 }), // Get many for simplicity
+          getCourses()
+        ]);
+        setQuestions(qRes.items);
+        setCourses(cRes);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  const getCourseName = (courseId: number) => {
+    return courses.find(c => c.id === courseId)?.code || `Course ${courseId}`;
+  };
 
   const filteredQuestions = questions.filter(q => {
-    const matchesSearch = q.question.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         q.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesCourse = filterCourse === 'all' || q.course === filterCourse;
+    const matchesSearch = q.question_text?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCourse = filterCourse === 'all' || q.course_id.toString() === filterCourse;
     const matchesStatus = filterStatus === 'all' || q.status === filterStatus;
-    const matchesDifficulty = filterDifficulty === 'all' || q.difficulty === filterDifficulty;
+    const matchesDifficulty = filterDifficulty === 'all' || q.difficulty.toLowerCase() === filterDifficulty.toLowerCase();
     return matchesSearch && matchesCourse && matchesStatus && matchesDifficulty;
   });
 
   const getStatusBadge = (status: string) => {
     const styles = {
       approved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
-      pending: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
+      pending_review: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
       rejected: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
     };
-    return styles[status as keyof typeof styles];
+    return styles[status as keyof typeof styles] || '';
   };
 
   const getDifficultyColor = (difficulty: string) => {
+    const d = difficulty?.toLowerCase() || '';
     const colors = {
-      Easy: 'text-green-600 dark:text-green-400',
-      Medium: 'text-amber-600 dark:text-amber-400',
-      Hard: 'text-red-600 dark:text-red-400',
+      easy: 'text-green-600 dark:text-green-400',
+      medium: 'text-amber-600 dark:text-amber-400',
+      hard: 'text-red-600 dark:text-red-400',
     };
-    return colors[difficulty as keyof typeof colors];
+    return colors[d as keyof typeof colors] || '';
   };
 
   const toggleSelectQuestion = (id: number) => {
@@ -159,13 +114,13 @@ export default function QuestionBank() {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="text-sm text-gray-600 dark:text-gray-400">Pending Review</div>
           <div className="text-3xl font-bold text-amber-600 dark:text-amber-400 mt-2">
-            {questions.filter(q => q.status === 'pending').length}
+            {questions.filter(q => q.status === 'pending_review').length}
           </div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="text-sm text-gray-600 dark:text-gray-400">AI Generated</div>
           <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-2">
-            {questions.filter(q => q.createdBy === 'AI').length}
+            {questions.filter(q => q.created_by_ai).length}
           </div>
         </div>
       </div>
@@ -190,10 +145,9 @@ export default function QuestionBank() {
             className="px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">All Courses</option>
-            <option value="CS101">CS101</option>
-            <option value="CS201">CS201</option>
-            <option value="CS401">CS401</option>
-            <option value="MATH201">MATH201</option>
+            {courses.map(c => (
+              <option key={c.id} value={c.id}>{c.code}</option>
+            ))}
           </select>
 
           <select
@@ -214,7 +168,7 @@ export default function QuestionBank() {
           >
             <option value="all">All Status</option>
             <option value="approved">Approved</option>
-            <option value="pending">Pending</option>
+            <option value="pending_review">Pending</option>
             <option value="rejected">Rejected</option>
           </select>
         </div>
@@ -289,24 +243,17 @@ export default function QuestionBank() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="max-w-md">
-                      <p className="text-gray-900 dark:text-white font-medium line-clamp-2">{q.question}</p>
-                      <div className="flex items-center gap-2 mt-2">
-                        {q.tags.map((tag, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-xs rounded-full">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
+                      <p className="text-gray-900 dark:text-white font-medium line-clamp-2">{q.question_text}</p>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm">
-                      <div className="font-mono font-semibold text-gray-900 dark:text-white">{q.course}</div>
-                      <div className="text-gray-600 dark:text-gray-400">{q.lo}</div>
+                      <div className="font-mono font-semibold text-gray-900 dark:text-white">{getCourseName(q.course_id)}</div>
+                      <div className="text-gray-600 dark:text-gray-400">LO{q.learning_outcome_id}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">{q.type}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{q.question_type}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`text-sm font-medium ${getDifficultyColor(q.difficulty)}`}>

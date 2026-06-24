@@ -206,7 +206,7 @@ export default function ExamPreview({ examId, onSaved }: { examId?: number; onSa
                 {q.text}
               </div>
 
-              {q.type === 'Multiple Choice' && q.options && (
+              {(q.type === 'Multiple Choice' || q.type === 'mcq') && q.options && (
                 <div className="space-y-2 mt-4 ml-2">
                   {q.options.map((opt, i) => {
                     const isCorrect = q.correct_answer === opt;
@@ -224,7 +224,7 @@ export default function ExamPreview({ examId, onSaved }: { examId?: number; onSa
                 </div>
               )}
 
-              {q.type === 'Essay' && (
+              {(q.type === 'Essay' || q.type === 'essay') && (
                 <div className="mt-4 space-y-4">
                   <div className="p-4 bg-white border rounded-md">
                     <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Đáp án mẫu</div>

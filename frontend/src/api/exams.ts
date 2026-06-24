@@ -122,15 +122,19 @@ export const examApi = {
         if (!exam) return reject(new Error("Exam not found"));
 
         // Generate dynamic questions based on total_questions
-        const questionPool = MOCK_EXAM_PREVIEW.questions;
+        const questionPool = [...MOCK_EXAM_PREVIEW.questions];
         const total = exam.total_questions || 6;
+        
+        // Shuffle pool
+        const shuffledPool = questionPool.sort(() => Math.random() - 0.5);
+        
         const questions: ExamPreviewQuestion[] = Array.from({ length: total }).map((_, i) => {
-          const baseQ = questionPool[i % questionPool.length];
+          const baseQ = shuffledPool[i % shuffledPool.length];
           return {
             ...baseQ,
             id: baseQ.id + i * 1000,
             exam_id: exam.id,
-            question_id: baseQ.question_id + i,
+            question_id: baseQ.question_id,
             order_index: i + 1,
             text: `[Câu ${i + 1}] ` + baseQ.text
           };
@@ -158,28 +162,23 @@ export const examApi = {
   async swapQuestion(examId: number, questionId: number): Promise<{ data: { new_question_id: number; new_question: ExamPreviewQuestion }, message: string }> {
     if (USE_MOCK) {
       return new Promise((resolve) => setTimeout(() => {
-        const isMcq = Math.random() > 0.3;
-        const qId = Math.floor(Math.random() * 1000) + 1;
-        const diffs = ['easy', 'medium', 'hard'];
-        
-        const newQ: ExamPreviewQuestion = {
-          id: qId + 20000,
-          exam_id: examId,
-          question_id: qId,
-          order_index: 0, // Ignored in UI
-          text: `[ĐÃ ĐỔI] Nội dung câu hỏi thay thế mới mã ${qId}`,
-          type: isMcq ? 'Multiple Choice' : 'Essay',
-          difficulty: diffs[Math.floor(Math.random() * diffs.length)],
-          learning_outcome_code: `LO${Math.floor(Math.random() * 5) + 1}`,
-          options: isMcq ? ['Option 1', 'Option 2', 'Option 3', 'Option 4'] : undefined,
-          correct_answer: isMcq ? 'Option 1' : undefined,
-          sample_answer: !isMcq ? 'Đáp án mẫu mới...' : undefined,
-          rubric: !isMcq ? 'Rubric mới' : undefined
-        };
+        const pool = MOCK_EXAM_PREVIEW.questions;
+        const randomQ = pool[Math.floor(Math.random() * pool.length)];
+        const newId = Math.floor(Math.random() * 10000);
         
         resolve({
-          data: { new_question_id: qId, new_question: newQ },
-          message: "Swapped successfully"
+          data: {
+            new_question_id: newId,
+            new_question: {
+              ...randomQ,
+              id: newId,
+              exam_id: examId,
+              question_id: randomQ.question_id,
+              order_index: 0,
+              text: "[Đã đổi] " + randomQ.text
+            }
+          },
+          message: "Question swapped successfully"
         });
       }, 600));
     }
