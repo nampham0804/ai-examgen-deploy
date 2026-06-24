@@ -16,7 +16,11 @@ from src.observability.langfuse_tracer import LangfuseAIGenerationTracer
 from src.repositories.document_chunk_repository import list_document_chunks
 from src.repositories.document_repository import get_document
 from src.repositories.learning_outcome_repository import get_learning_outcome
-from src.repositories.question_repository import create_questions, list_questions_for_quality_check
+from src.repositories.question_repository import (
+    create_questions,
+    list_questions_for_quality_check,
+    list_recent_question_texts_for_prompt,
+)
 from src.services.question_quality_service import validate_generated_questions
 from src.services.retrieval_service import DEFAULT_TOP_K, MAX_TOP_K, RetrievalError, retrieve_relevant_chunks
 
@@ -81,6 +85,12 @@ def generate_questions_from_chunks(
     if not chunks:
         raise AIGenerationError("No selected chunks were available for question generation")
 
+    existing_question_texts = list_recent_question_texts_for_prompt(
+        db,
+        course_id=document.course_id,
+        document_id=document_id,
+        limit=20,
+    )
     messages = build_question_generation_messages(
         course=document.course,
         learning_outcome=learning_outcome,
@@ -90,6 +100,7 @@ def generate_questions_from_chunks(
         num_questions=requested_count,
         topic=topic,
         diversity_mode=diversity_mode,
+        existing_question_texts=existing_question_texts,
     )
 
     provider_metadata = get_llm_provider_metadata()
