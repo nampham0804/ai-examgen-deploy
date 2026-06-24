@@ -55,6 +55,7 @@ export default function AIGeneration() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [existingDocuments, setExistingDocuments] = useState<ExistingDocument[]>([]);
   const [activeDocument, setActiveDocument] = useState<ActiveDocument | null>(null);
+  const [selectedDocuments, setSelectedDocuments] = useState<ActiveDocument[]>([]);
   const [documentExtract, setDocumentExtract] = useState<DocumentExtract | null>(null);
   const [documentChunks, setDocumentChunks] = useState<DocumentChunk[]>([]);
   const [topic, setTopic] = useState('');
@@ -155,15 +156,21 @@ export default function AIGeneration() {
   }, [activeDocument, documentExtract, loading.extract, loading.generate, loading.upload, pendingQuestions.length]);
 
   const documentChunksById = useMemo(() => new Map(documentChunks.map((chunk) => [chunk.id, chunk])), [documentChunks]);
+  const selectedProcessedDocuments = useMemo(
+    () => selectedDocuments.filter((document) => document.status === 'processed' && document.chunk_count > 0),
+    [selectedDocuments],
+  );
+  const activeDocumentsById = useMemo(
+    () => new Map(selectedDocuments.map((document) => [document.id, document])),
+    [selectedDocuments],
+  );
   const canUpload = Boolean(selectedCourseId && selectedFile) && !loading.upload;
   const canExtract =
     Boolean(activeDocument?.id) && !loading.extract && activeDocument?.status !== 'processed' && activeDocument?.status !== 'processing';
   const canGenerate =
     Boolean(
-      activeDocument?.id &&
+      selectedProcessedDocuments.length > 0 &&
         selectedLearningOutcomeId &&
-        activeDocument?.status === 'processed' &&
-        activeDocument.chunk_count > 0 &&
         numQuestions >= 1 &&
         numQuestions <= 5,
     ) &&
@@ -174,12 +181,13 @@ export default function AIGeneration() {
   const generateDisabledReason = getGenerateDisabledReason(
     selectedCourseId,
     selectedLearningOutcomeId,
-    activeDocument,
+    selectedProcessedDocuments,
     loading.generate,
   );
 
   const resetDocumentState = () => {
     setActiveDocument(null);
+    setSelectedDocuments([]);
     setDocumentExtract(null);
     setDocumentChunks([]);
     setGeneratedQuestions([]);
@@ -199,12 +207,15 @@ export default function AIGeneration() {
     setLoading((prev) => ({ ...prev, upload: true }));
     try {
       const uploaded = await uploadDocument(selectedFile, Number(selectedCourseId));
-      setActiveDocument(documentUploadToActive(uploaded));
+      const uploadedDocument = documentUploadToActive(uploaded);
+      const nextSelection = upsertDocument(selectedDocuments, uploadedDocument);
+      setActiveDocument(uploadedDocument);
+      setSelectedDocuments(nextSelection);
       setDocumentExtract(null);
-      setDocumentChunks([]);
       setGeneratedQuestions([]);
-      setPendingQuestions([]);
       setSuccessMessage(`Upload successful: document_id=${uploaded.id}, status=${uploaded.status}`);
+      await loadDocumentChunksForDocuments(nextSelection, true);
+      await refreshPendingQuestions(nextSelection.map((document) => document.id), true);
       await loadExistingDocuments(Number(selectedCourseId));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Upload failed');
@@ -220,21 +231,19 @@ export default function AIGeneration() {
     setLoading((prev) => ({ ...prev, extract: true }));
     try {
       const extracted = await extractDocument(activeDocument.id);
+      const updatedDocument = {
+        ...activeDocument,
+        status: 'processed' as DocumentStatus,
+        text_length: extracted.text_length,
+        chunk_count: extracted.chunk_count,
+      };
       setDocumentExtract(extracted);
-      setActiveDocument((current) =>
-        current
-          ? {
-              ...current,
-              status: 'processed',
-              text_length: extracted.text_length,
-              chunk_count: extracted.chunk_count,
-            }
-          : current,
-      );
+      setActiveDocument(updatedDocument);
+      setSelectedDocuments((current) => upsertDocument(current, updatedDocument));
       setSuccessMessage(
         `Extract successful: document_id=${extracted.id}, text_length=${extracted.text_length}, chunk_count=${extracted.chunk_count}`,
       );
-      await loadDocumentChunks(extracted.id, true);
+      await loadDocumentChunksForDocuments(upsertDocument(selectedDocuments, updatedDocument), true);
       if (selectedCourseId) await loadExistingDocuments(Number(selectedCourseId));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Extract/chunk failed');
@@ -244,14 +253,16 @@ export default function AIGeneration() {
   };
 
   const handleGenerate = async () => {
-    if (!activeDocument || !selectedLearningOutcomeId) return;
+    if (selectedProcessedDocuments.length === 0 || !selectedLearningOutcomeId) return;
     setErrorMessage('');
     setWarningMessage('');
     setSuccessMessage('');
     setLoading((prev) => ({ ...prev, generate: true }));
     try {
+      const documentIds = selectedProcessedDocuments.map((document) => document.id);
+      const documentPayload = documentIds.length === 1 ? { document_id: documentIds[0] } : { document_ids: documentIds };
       const result = await generateQuestions({
-        document_id: activeDocument.id,
+        ...documentPayload,
         learning_outcome_id: Number(selectedLearningOutcomeId),
         question_type: questionType,
         difficulty,
@@ -265,7 +276,7 @@ export default function AIGeneration() {
       setGeneratedCount(result.generated);
       setSuccessMessage(`Generation successful: generated=${result.generated}, source chunks=${result.source_chunk_ids.length}`);
       if (result.warnings.length > 0) setWarningMessage(result.warnings.join('; '));
-      await refreshPendingQuestions(activeDocument.id, true);
+      await refreshPendingQuestions(documentIds, true);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Question generation failed');
     } finally {
@@ -273,11 +284,18 @@ export default function AIGeneration() {
     }
   };
 
-  const refreshPendingQuestions = async (documentId: number, warnOnly = false) => {
+  const refreshPendingQuestions = async (documentIds: number[], warnOnly = false) => {
+    if (documentIds.length === 0) {
+      setPendingQuestions([]);
+      return;
+    }
     setLoading((prev) => ({ ...prev, questions: true }));
     try {
-      const result = await listQuestions({ document_id: documentId, status: 'pending_review', limit: 100 });
-      setPendingQuestions(result.items);
+      const results = await Promise.all(
+        documentIds.map((documentId) => listQuestions({ document_id: documentId, status: 'pending_review', limit: 100 })),
+      );
+      const questions = results.flatMap((result) => result.items);
+      setPendingQuestions(uniqueQuestions(questions));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not load saved pending_review questions';
       if (warnOnly) setWarningMessage(`Generated questions are shown, but saved-question loading failed: ${message}`);
@@ -287,10 +305,15 @@ export default function AIGeneration() {
     }
   };
 
-  const loadDocumentChunks = async (documentId: number, warnOnly = false) => {
+  const loadDocumentChunksForDocuments = async (documents: ActiveDocument[], warnOnly = false) => {
+    const processedDocuments = documents.filter((document) => document.status === 'processed' && document.chunk_count > 0);
+    if (processedDocuments.length === 0) {
+      setDocumentChunks([]);
+      return;
+    }
     try {
-      const chunks = await listDocumentChunks(documentId);
-      setDocumentChunks(chunks);
+      const chunkGroups = await Promise.all(processedDocuments.map((document) => listDocumentChunks(document.id)));
+      setDocumentChunks(chunkGroups.flat());
     } catch (error) {
       setDocumentChunks([]);
       const message = error instanceof Error ? error.message : 'Could not load source chunk previews';
@@ -303,17 +326,52 @@ export default function AIGeneration() {
     setErrorMessage('');
     setSuccessMessage('');
     setWarningMessage('');
-    setDocumentExtract(document.status === 'processed' ? existingDocumentToExtract(document) : null);
+    const selectedDocument = existingDocumentToActive(document);
+    const isAlreadySelected = selectedDocuments.some((item) => item.id === document.id);
+    const nextSelection = isAlreadySelected
+      ? selectedDocuments.filter((item) => item.id !== document.id)
+      : upsertDocument(selectedDocuments, selectedDocument);
+    const nextActiveDocument = isAlreadySelected
+      ? (activeDocument?.id === document.id ? (nextSelection[0] ?? null) : activeDocument)
+      : selectedDocument;
+    setDocumentExtract(nextActiveDocument?.status === 'processed' ? existingDocumentToExtract(nextActiveDocument) : null);
     setGeneratedQuestions([]);
     setLastSourceChunkIds([]);
     setGeneratedCount(0);
+    setSelectedDocuments(nextSelection);
+    setActiveDocument(nextActiveDocument);
+    setSuccessMessage(
+      isAlreadySelected
+        ? `Deselected document_id=${document.id}`
+        : `Selected existing document_id=${document.id}, status=${document.status}`,
+    );
+    await loadDocumentChunksForDocuments(nextSelection, true);
+    await refreshPendingQuestions(nextSelection.map((item) => item.id), true);
+  };
+
+  const handleRemoveSelectedDocument = async (documentId: number) => {
+    const nextSelection = selectedDocuments.filter((document) => document.id !== documentId);
+    const nextActiveDocument = activeDocument?.id === documentId ? (nextSelection[0] ?? null) : activeDocument;
+    setSelectedDocuments(nextSelection);
+    setActiveDocument(nextActiveDocument);
+    setDocumentExtract(nextActiveDocument?.status === 'processed' ? existingDocumentToExtract(nextActiveDocument) : null);
+    setGeneratedQuestions([]);
+    setLastSourceChunkIds([]);
+    setGeneratedCount(0);
+    await loadDocumentChunksForDocuments(nextSelection, true);
+    await refreshPendingQuestions(nextSelection.map((document) => document.id), true);
+  };
+
+  const handleClearSelectedDocuments = () => {
+    setSelectedDocuments([]);
+    setActiveDocument(null);
+    setDocumentExtract(null);
     setDocumentChunks([]);
-    setActiveDocument(existingDocumentToActive(document));
-    setSuccessMessage(`Selected existing document_id=${document.id}, status=${document.status}`);
-    if (document.status === 'processed' && document.chunk_count > 0) {
-      await loadDocumentChunks(document.id, true);
-    }
-    await refreshPendingQuestions(document.id, true);
+    setGeneratedQuestions([]);
+    setPendingQuestions([]);
+    setLastSourceChunkIds([]);
+    setGeneratedCount(0);
+    setSuccessMessage('Cleared selected documents');
   };
 
   return (
@@ -470,7 +528,6 @@ export default function AIGeneration() {
                 accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 onChange={(event) => {
                   setSelectedFile(event.target.files?.[0] ?? null);
-                  resetDocumentState();
                 }}
                 className="sr-only"
               />
@@ -514,38 +571,89 @@ export default function AIGeneration() {
             {existingDocuments.length > 0 && (
               <div className="space-y-2">
                 {existingDocuments.map((document) => {
-                  const isSelected = activeDocument?.id === document.id;
+                  const isSelected = selectedDocuments.some((item) => item.id === document.id);
+                  const isActive = activeDocument?.id === document.id;
                   return (
-                    <button
+                    <label
                       key={document.id}
-                      type="button"
-                      onClick={() => handleSelectExistingDocument(document)}
-                      className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                      className={`block w-full cursor-pointer rounded-lg border p-3 text-left transition-colors ${
                         isSelected
                           ? 'border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-900/20'
                           : 'border-gray-200 bg-gray-50 hover:border-blue-300 dark:border-gray-700 dark:bg-gray-700/40'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{document.file_name}</p>
-                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            document_id={document.id}; type={document.document_type}
-                          </p>
+                        <div className="flex min-w-0 gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleSelectExistingDocument(document)}
+                            className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{document.file_name}</p>
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              document_id={document.id}; type={document.document_type}
+                            </p>
+                          </div>
                         </div>
-                        <Badge tone={statusTone(document.status)}>{document.status}</Badge>
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge tone={statusTone(document.status)}>{document.status}</Badge>
+                          {isActive && <Badge tone="blue">active</Badge>}
+                        </div>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-400">
                         <span>pages={document.page_count ?? 'n/a'}</span>
                         <span>text={document.text_length ? formatNumber(document.text_length) : '-'}</span>
                         <span>chunks={document.chunk_count}</span>
                       </div>
-                    </button>
+                    </label>
                   );
                 })}
               </div>
             )}
           </div>
+
+          {selectedDocuments.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Active Documents</h3>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    selected={selectedDocuments.length}; processed={selectedProcessedDocuments.length}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearSelectedDocuments}
+                  className="rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Clear all
+                </button>
+              </div>
+              <div className="space-y-2">
+                {selectedDocuments.map((document) => (
+                  <div key={document.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-700/40">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{document.file_name}</p>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          document_id={document.id}; chunks={document.chunk_count}; status={document.status}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSelectedDocument(document.id)}
+                        className="rounded-md px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/20"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
             <div className="flex items-center justify-between gap-3">
@@ -679,7 +787,7 @@ export default function AIGeneration() {
             questions={generatedQuestions}
             emptyText="Generate questions to see the latest API response."
             loading={loading.generate}
-            activeDocument={activeDocument}
+            activeDocumentsById={activeDocumentsById}
             documentChunksById={documentChunksById}
           />
 
@@ -688,7 +796,7 @@ export default function AIGeneration() {
             questions={pendingQuestions}
             emptyText="Saved pending_review questions will appear after generation."
             loading={loading.questions}
-            activeDocument={activeDocument}
+            activeDocumentsById={activeDocumentsById}
             documentChunksById={documentChunksById}
           />
         </div>
@@ -764,14 +872,14 @@ function QuestionPanel({
   questions,
   emptyText,
   loading,
-  activeDocument,
+  activeDocumentsById,
   documentChunksById,
 }: {
   title: string;
   questions: GeneratedQuestion[];
   emptyText: string;
   loading: boolean;
-  activeDocument: ActiveDocument | null;
+  activeDocumentsById: Map<number, ActiveDocument>;
   documentChunksById: Map<number, DocumentChunk>;
 }) {
   return (
@@ -823,7 +931,7 @@ function QuestionPanel({
                 </div>
                 <SourceEvidence
                   ids={question.source_chunk_ids ?? []}
-                  activeDocument={activeDocument}
+                  activeDocumentsById={activeDocumentsById}
                   documentChunksById={documentChunksById}
                 />
                 {question.explanation && (
@@ -897,32 +1005,42 @@ function TextBlock({ label, value }: { label: string; value?: string | null }) {
 
 function SourceEvidence({
   ids,
-  activeDocument,
+  activeDocumentsById,
   documentChunksById,
 }: {
   ids: number[];
-  activeDocument: ActiveDocument | null;
+  activeDocumentsById: Map<number, ActiveDocument>;
   documentChunksById: Map<number, DocumentChunk>;
 }) {
   if (ids.length === 0) return <Badge tone="amber">No source evidence returned</Badge>;
+  const groups = groupSourceEvidence(ids, documentChunksById);
 
   return (
     <div className="space-y-2">
-      {ids.map((id) => {
-        const chunk = documentChunksById.get(id);
+      {groups.map((group) => {
+        const sourceDocument = group.documentId === null ? null : activeDocumentsById.get(group.documentId);
         return (
-          <div key={id} className="rounded-md border border-blue-200 bg-white p-3 dark:border-blue-800 dark:bg-gray-800">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge tone="blue">chunk {chunk ? chunk.chunk_index : id}</Badge>
-              {activeDocument && <Badge tone="gray">{activeDocument.file_name}</Badge>}
-              {chunk?.title && <Badge tone="gray">{chunk.title}</Badge>}
+          <div key={group.documentId ?? 'unknown'} className="rounded-md border border-blue-200 bg-white p-3 dark:border-blue-800 dark:bg-gray-800">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Badge tone="gray">{sourceDocument?.file_name ?? 'Unknown source document'}</Badge>
+              <Badge tone="blue">{group.items.length} chunk{group.items.length === 1 ? '' : 's'}</Badge>
             </div>
-            {chunk?.section_path && (
-              <p className="mt-2 text-xs text-blue-800 dark:text-blue-200">Section: {chunk.section_path}</p>
-            )}
-            <p className="mt-2 text-sm leading-relaxed text-blue-900 dark:text-blue-100">
-              {chunk?.text ? previewText(chunk.text) : 'Source preview is unavailable for this chunk.'}
-            </p>
+            <div className="space-y-2">
+              {group.items.map(({ id, chunk }) => (
+                <div key={id} className="rounded border border-blue-100 bg-blue-50/70 p-2 dark:border-blue-900/60 dark:bg-blue-950/30">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone="blue">chunk {chunk ? chunk.chunk_index : id}</Badge>
+                    {chunk?.title && <Badge tone="gray">{chunk.title}</Badge>}
+                  </div>
+                  {chunk?.section_path && (
+                    <p className="mt-2 text-xs text-blue-800 dark:text-blue-200">Section: {chunk.section_path}</p>
+                  )}
+                  <p className="mt-2 text-sm leading-relaxed text-blue-900 dark:text-blue-100">
+                    {chunk?.text ? previewText(chunk.text) : 'Source preview is unavailable for this chunk.'}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         );
       })}
@@ -1038,15 +1156,13 @@ function getExtractDisabledReason(
 function getGenerateDisabledReason(
   selectedCourseId: string,
   selectedLearningOutcomeId: string,
-  activeDocument: ActiveDocument | null,
+  selectedProcessedDocuments: ActiveDocument[],
   isGenerating: boolean,
 ): string {
   if (isGenerating) return 'Generation is in progress. The frontend will not auto-retry this request.';
   if (!selectedCourseId) return 'Select a course first.';
   if (!selectedLearningOutcomeId) return 'Select a learning outcome first.';
-  if (!activeDocument) return 'Upload a document or select one from history before generation.';
-  if (activeDocument.status !== 'processed') return 'Extract and chunk the document before generation.';
-  if (activeDocument.chunk_count === 0) return 'The processed document has no chunks available.';
+  if (selectedProcessedDocuments.length === 0) return 'Select at least one processed document with chunks before generation.';
   return '';
 }
 
@@ -1079,7 +1195,7 @@ function existingDocumentToActive(document: ExistingDocument): ActiveDocument {
   };
 }
 
-function existingDocumentToExtract(document: ExistingDocument): DocumentExtract {
+function existingDocumentToExtract(document: ExistingDocument | ActiveDocument): DocumentExtract {
   return {
     id: document.id,
     status: document.status,
@@ -1087,6 +1203,35 @@ function existingDocumentToExtract(document: ExistingDocument): DocumentExtract 
     chunk_count: document.chunk_count,
     extraction_method: 'markitdown',
   };
+}
+
+function upsertDocument(documents: ActiveDocument[], document: ActiveDocument): ActiveDocument[] {
+  const exists = documents.some((item) => item.id === document.id);
+  if (!exists) return [...documents, document];
+  return documents.map((item) => (item.id === document.id ? document : item));
+}
+
+function uniqueQuestions(questions: GeneratedQuestion[]): GeneratedQuestion[] {
+  const seen = new Set<number>();
+  const unique = [];
+  for (const question of questions) {
+    if (seen.has(question.id)) continue;
+    seen.add(question.id);
+    unique.push(question);
+  }
+  return unique.sort((left, right) => right.id - left.id);
+}
+
+function groupSourceEvidence(ids: number[], documentChunksById: Map<number, DocumentChunk>) {
+  const groups = new Map<number | null, { documentId: number | null; items: { id: number; chunk?: DocumentChunk }[] }>();
+  for (const id of ids) {
+    const chunk = documentChunksById.get(id);
+    const documentId = chunk?.document_id ?? null;
+    const group = groups.get(documentId) ?? { documentId, items: [] };
+    group.items.push({ id, chunk });
+    groups.set(documentId, group);
+  }
+  return Array.from(groups.values());
 }
 
 function clampQuestionCount(value: number): number {
