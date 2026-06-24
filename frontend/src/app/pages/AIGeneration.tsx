@@ -160,6 +160,16 @@ export default function AIGeneration() {
     () => selectedDocuments.filter((document) => document.status === 'processed' && document.chunk_count > 0),
     [selectedDocuments],
   );
+  const eligibleExistingDocuments = useMemo(
+    () => existingDocuments.filter((document) => document.status === 'processed' && document.chunk_count > 0),
+    [existingDocuments],
+  );
+  const allEligibleExistingSelected = useMemo(
+    () =>
+      eligibleExistingDocuments.length > 0 &&
+      eligibleExistingDocuments.every((document) => selectedDocuments.some((selected) => selected.id === document.id)),
+    [eligibleExistingDocuments, selectedDocuments],
+  );
   const activeDocumentsById = useMemo(
     () => new Map(selectedDocuments.map((document) => [document.id, document])),
     [selectedDocuments],
@@ -362,10 +372,25 @@ export default function AIGeneration() {
     await refreshPendingQuestions(nextSelection.map((document) => document.id), true);
   };
 
-  const handleClearSelectedDocuments = () => {
+  const handleSelectAllEligibleDocuments = async () => {
+    if (eligibleExistingDocuments.length === 0 || allEligibleExistingSelected) return;
+    const nextSelection = eligibleExistingDocuments.reduce(
+      (current, document) => upsertDocument(current, existingDocumentToActive(document)),
+      selectedDocuments,
+    );
+    setErrorMessage('');
+    setWarningMessage('');
+    setSuccessMessage(`Selected ${eligibleExistingDocuments.length} processed document(s)`);
+    setSelectedDocuments(nextSelection);
+    setGeneratedQuestions([]);
+    setLastSourceChunkIds([]);
+    setGeneratedCount(0);
+    await loadDocumentChunksForDocuments(nextSelection, true);
+    await refreshPendingQuestions(nextSelection.map((document) => document.id), true);
+  };
+
+  const handleClearSelectedDocuments = async () => {
     setSelectedDocuments([]);
-    setActiveDocument(null);
-    setDocumentExtract(null);
     setDocumentChunks([]);
     setGeneratedQuestions([]);
     setPendingQuestions([]);
@@ -557,7 +582,25 @@ export default function AIGeneration() {
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Existing Documents</h3>
                 <p className="text-xs text-gray-500 dark:text-gray-500">Reuse uploaded materials for the selected course.</p>
               </div>
-              {loading.documents && <Loader2 className="w-4 h-4 animate-spin text-gray-500" />}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSelectAllEligibleDocuments}
+                  disabled={eligibleExistingDocuments.length === 0 || allEligibleExistingSelected}
+                  className="rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearSelectedDocuments}
+                  disabled={selectedDocuments.length === 0}
+                  className="rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Clear all
+                </button>
+                {loading.documents && <Loader2 className="w-4 h-4 animate-spin text-gray-500" />}
+              </div>
             </div>
 
             {!selectedCourseId && (
