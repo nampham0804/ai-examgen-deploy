@@ -5,13 +5,22 @@ import { useApp } from '../context/AppContext';
 import {
   extractDocument,
   generateQuestions,
+  listDocumentChunks,
   listDocuments,
   listCourses,
   listLearningOutcomes,
   listQuestions,
   uploadDocument,
 } from '../api/tv2';
-import type { Course, DocumentExtract, DocumentUpload, ExistingDocument, GeneratedQuestion, LearningOutcome } from '../api/tv2';
+import type {
+  Course,
+  DocumentChunk,
+  DocumentExtract,
+  DocumentUpload,
+  ExistingDocument,
+  GeneratedQuestion,
+  LearningOutcome,
+} from '../api/tv2';
 
 const workflowSteps = [
   { id: 1, label: 'Document Upload', icon: Upload },
@@ -47,10 +56,11 @@ export default function AIGeneration() {
   const [existingDocuments, setExistingDocuments] = useState<ExistingDocument[]>([]);
   const [activeDocument, setActiveDocument] = useState<ActiveDocument | null>(null);
   const [documentExtract, setDocumentExtract] = useState<DocumentExtract | null>(null);
+  const [documentChunks, setDocumentChunks] = useState<DocumentChunk[]>([]);
   const [topic, setTopic] = useState('');
   const [questionType, setQuestionType] = useState<QuestionType>('mcq');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
-  const [numQuestions, setNumQuestions] = useState(1);
+  const [numQuestions, setNumQuestions] = useState(3);
   const [topK, setTopK] = useState(3);
   const [generatedQuestions, setGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
   const [pendingQuestions, setPendingQuestions] = useState<GeneratedQuestion[]>([]);
@@ -144,11 +154,19 @@ export default function AIGeneration() {
     return 0;
   }, [activeDocument, documentExtract, loading.extract, loading.generate, loading.upload, pendingQuestions.length]);
 
+  const documentChunksById = useMemo(() => new Map(documentChunks.map((chunk) => [chunk.id, chunk])), [documentChunks]);
   const canUpload = Boolean(selectedCourseId && selectedFile) && !loading.upload;
   const canExtract =
     Boolean(activeDocument?.id) && !loading.extract && activeDocument?.status !== 'processed' && activeDocument?.status !== 'processing';
   const canGenerate =
-    Boolean(activeDocument?.id && selectedLearningOutcomeId && activeDocument?.status === 'processed' && activeDocument.chunk_count > 0) &&
+    Boolean(
+      activeDocument?.id &&
+        selectedLearningOutcomeId &&
+        activeDocument?.status === 'processed' &&
+        activeDocument.chunk_count > 0 &&
+        numQuestions >= 1 &&
+        numQuestions <= 5,
+    ) &&
     !loading.generate;
   const documentStatus = getDocumentStatus(activeDocument, documentExtract, loading.extract, errorMessage);
   const uploadDisabledReason = getUploadDisabledReason(selectedCourseId, selectedFile, loading.upload);
@@ -163,6 +181,7 @@ export default function AIGeneration() {
   const resetDocumentState = () => {
     setActiveDocument(null);
     setDocumentExtract(null);
+    setDocumentChunks([]);
     setGeneratedQuestions([]);
     setPendingQuestions([]);
     setLastSourceChunkIds([]);
@@ -182,6 +201,7 @@ export default function AIGeneration() {
       const uploaded = await uploadDocument(selectedFile, Number(selectedCourseId));
       setActiveDocument(documentUploadToActive(uploaded));
       setDocumentExtract(null);
+      setDocumentChunks([]);
       setGeneratedQuestions([]);
       setPendingQuestions([]);
       setSuccessMessage(`Upload successful: document_id=${uploaded.id}, status=${uploaded.status}`);
@@ -214,6 +234,7 @@ export default function AIGeneration() {
       setSuccessMessage(
         `Extract successful: document_id=${extracted.id}, text_length=${extracted.text_length}, chunk_count=${extracted.chunk_count}`,
       );
+      await loadDocumentChunks(extracted.id, true);
       if (selectedCourseId) await loadExistingDocuments(Number(selectedCourseId));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Extract/chunk failed');
@@ -266,6 +287,18 @@ export default function AIGeneration() {
     }
   };
 
+  const loadDocumentChunks = async (documentId: number, warnOnly = false) => {
+    try {
+      const chunks = await listDocumentChunks(documentId);
+      setDocumentChunks(chunks);
+    } catch (error) {
+      setDocumentChunks([]);
+      const message = error instanceof Error ? error.message : 'Could not load source chunk previews';
+      if (warnOnly) setWarningMessage(message);
+      else setErrorMessage(message);
+    }
+  };
+
   const handleSelectExistingDocument = async (document: ExistingDocument) => {
     setErrorMessage('');
     setSuccessMessage('');
@@ -274,8 +307,12 @@ export default function AIGeneration() {
     setGeneratedQuestions([]);
     setLastSourceChunkIds([]);
     setGeneratedCount(0);
+    setDocumentChunks([]);
     setActiveDocument(existingDocumentToActive(document));
     setSuccessMessage(`Selected existing document_id=${document.id}, status=${document.status}`);
+    if (document.status === 'processed' && document.chunk_count > 0) {
+      await loadDocumentChunks(document.id, true);
+    }
     await refreshPendingQuestions(document.id, true);
   };
 
@@ -582,10 +619,11 @@ export default function AIGeneration() {
                   type="number"
                   value={numQuestions}
                   min={1}
-                  max={20}
-                  onChange={(event) => setNumQuestions(Number(event.target.value))}
+                  max={5}
+                  onChange={(event) => setNumQuestions(clampQuestionCount(Number(event.target.value)))}
                   className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Allowed range: 1-5 questions. Default is 3.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">top_k</label>
@@ -641,6 +679,8 @@ export default function AIGeneration() {
             questions={generatedQuestions}
             emptyText="Generate questions to see the latest API response."
             loading={loading.generate}
+            activeDocument={activeDocument}
+            documentChunksById={documentChunksById}
           />
 
           <QuestionPanel
@@ -648,6 +688,8 @@ export default function AIGeneration() {
             questions={pendingQuestions}
             emptyText="Saved pending_review questions will appear after generation."
             loading={loading.questions}
+            activeDocument={activeDocument}
+            documentChunksById={documentChunksById}
           />
         </div>
       </div>
@@ -722,11 +764,15 @@ function QuestionPanel({
   questions,
   emptyText,
   loading,
+  activeDocument,
+  documentChunksById,
 }: {
   title: string;
   questions: GeneratedQuestion[];
   emptyText: string;
   loading: boolean;
+  activeDocument: ActiveDocument | null;
+  documentChunksById: Map<number, DocumentChunk>;
 }) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -775,7 +821,11 @@ function QuestionPanel({
                 <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-blue-900 dark:text-blue-300">
                   Source chunks
                 </div>
-                <SourceChunkChips ids={question.source_chunk_ids ?? []} />
+                <SourceEvidence
+                  ids={question.source_chunk_ids ?? []}
+                  activeDocument={activeDocument}
+                  documentChunksById={documentChunksById}
+                />
                 {question.explanation && (
                   <div className="mt-3 border-t border-blue-200 pt-3 text-sm leading-relaxed text-blue-900 dark:border-blue-800 dark:text-blue-200">
                     <span className="font-semibold">Explanation: </span>
@@ -803,8 +853,10 @@ function McqDetails({ question }: { question: GeneratedQuestion }) {
       {hasOptions ? (
         <ul className="space-y-2 text-sm text-gray-800 dark:text-gray-200">
           {question.options?.map((option, index) => (
-            <li key={`${option.label}-${index}`} className="flex gap-3 rounded-md bg-white px-3 py-2 dark:bg-gray-800">
-              <span className="font-semibold text-blue-600 dark:text-blue-400">{option.label || String.fromCharCode(65 + index)}.</span>
+            <li key={`${option.label || option.key}-${index}`} className="flex gap-3 rounded-md bg-white px-3 py-2 dark:bg-gray-800">
+              <span className="font-semibold text-blue-600 dark:text-blue-400">
+                {option.label || option.key || String.fromCharCode(65 + index)}.
+              </span>
               <span>{option.text}</span>
             </li>
           ))}
@@ -843,15 +895,37 @@ function TextBlock({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-function SourceChunkChips({ ids }: { ids: number[] }) {
-  if (ids.length === 0) return <Badge tone="amber">No source chunks</Badge>;
+function SourceEvidence({
+  ids,
+  activeDocument,
+  documentChunksById,
+}: {
+  ids: number[];
+  activeDocument: ActiveDocument | null;
+  documentChunksById: Map<number, DocumentChunk>;
+}) {
+  if (ids.length === 0) return <Badge tone="amber">No source evidence returned</Badge>;
+
   return (
-    <div className="flex flex-wrap gap-2">
-      {ids.map((id) => (
-        <Badge key={id} tone="blue">
-          chunk {id}
-        </Badge>
-      ))}
+    <div className="space-y-2">
+      {ids.map((id) => {
+        const chunk = documentChunksById.get(id);
+        return (
+          <div key={id} className="rounded-md border border-blue-200 bg-white p-3 dark:border-blue-800 dark:bg-gray-800">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone="blue">chunk {chunk ? chunk.chunk_index : id}</Badge>
+              {activeDocument && <Badge tone="gray">{activeDocument.file_name}</Badge>}
+              {chunk?.title && <Badge tone="gray">{chunk.title}</Badge>}
+            </div>
+            {chunk?.section_path && (
+              <p className="mt-2 text-xs text-blue-800 dark:text-blue-200">Section: {chunk.section_path}</p>
+            )}
+            <p className="mt-2 text-sm leading-relaxed text-blue-900 dark:text-blue-100">
+              {chunk?.text ? previewText(chunk.text) : 'Source preview is unavailable for this chunk.'}
+            </p>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1013,6 +1087,18 @@ function existingDocumentToExtract(document: ExistingDocument): DocumentExtract 
     chunk_count: document.chunk_count,
     extraction_method: 'markitdown',
   };
+}
+
+function clampQuestionCount(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(Math.max(Math.trunc(value), 1), 5);
+}
+
+function previewText(text: string): string {
+  const compact = text.replace(/\s+/g, ' ').trim();
+  if (!compact) return 'Source preview is unavailable for this chunk.';
+  if (compact.length <= 260) return compact;
+  return `${compact.slice(0, 260).trim()}...`;
 }
 
 function formatNumber(value: number): string {

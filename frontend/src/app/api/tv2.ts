@@ -64,6 +64,21 @@ export type DocumentListResponse = {
   offset: number;
 };
 
+export type DocumentChunk = {
+  id: number;
+  document_id: number;
+  course_id: number;
+  chunk_index: number;
+  title?: string | null;
+  section_path?: string | null;
+  text: string;
+  keywords?: string[] | null;
+  token_count?: number | null;
+  page_start?: number | null;
+  page_end?: number | null;
+  created_at: string;
+};
+
 export type QuestionOption = {
   label?: string;
   key?: string;
@@ -156,6 +171,10 @@ export async function listDocuments(params: {
   if (params.limit) query.set('limit', String(params.limit));
   if (params.offset) query.set('offset', String(params.offset));
   return requestJson<DocumentListResponse>(`/documents?${query.toString()}`);
+}
+
+export async function listDocumentChunks(documentId: number): Promise<DocumentChunk[]> {
+  return requestJson<DocumentChunk[]>(`/documents/${documentId}/chunks`);
 }
 
 export async function generateQuestions(payload: GenerateQuestionsRequest): Promise<GenerateQuestionsResponse> {
