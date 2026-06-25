@@ -16,7 +16,11 @@ from src.observability.langfuse_tracer import LangfuseAIGenerationTracer
 from src.repositories.document_chunk_repository import list_document_chunks
 from src.repositories.document_repository import get_document
 from src.repositories.learning_outcome_repository import get_learning_outcome
-from src.repositories.question_repository import create_questions, list_questions_for_quality_check
+from src.repositories.question_repository import (
+    create_questions,
+    list_questions_for_quality_check_by_document_ids,
+    list_recent_question_texts_for_prompt,
+)
 from src.services.question_quality_service import validate_generated_questions
 from src.services.retrieval_service import DEFAULT_TOP_K, MAX_TOP_K, RetrievalError, retrieve_relevant_chunks
 
@@ -41,7 +45,8 @@ class QuestionValidationError(Exception):
 def generate_questions_from_chunks(
     db: Session,
     *,
-    document_id: int,
+    document_id: int | None = None,
+    document_ids: list[int] | None = None,
     learning_outcome_id: int,
     question_type: str,
     difficulty: str,
@@ -53,36 +58,36 @@ def generate_questions_from_chunks(
     _validate_generation_request(question_type, difficulty)
     requested_count = min(max(num_questions, 1), MAX_NUM_QUESTIONS)
     requested_top_k = min(max(top_k, 1), MAX_TOP_K)
+    selected_document_ids = _normalize_document_ids(document_id, document_ids)
+    primary_document_id = selected_document_ids[0]
 
-    document = get_document(db, document_id)
     learning_outcome = get_learning_outcome(db, learning_outcome_id)
-    if document is None:
-        raise AIGenerationError("Document not found", status_code=404, error="Not found")
-    if document.status != "processed":
-        raise AIGenerationError("Document must be processed before question generation")
     if learning_outcome is None:
         raise AIGenerationError("Learning outcome not found", status_code=404, error="Not found")
-    if learning_outcome.course_id != document.course_id:
-        raise AIGenerationError("Learning outcome does not belong to the document course")
 
-    try:
-        retrieval = retrieve_relevant_chunks(
-            db,
-            document_id=document_id,
-            learning_outcome_id=learning_outcome_id,
-            topic=topic,
-            top_k=requested_top_k,
-        )
-    except RetrievalError as exc:
-        raise AIGenerationError(exc.detail, status_code=exc.status_code, error=exc.error) from exc
+    documents = _get_generation_documents(db, selected_document_ids, learning_outcome.course_id)
+    primary_document = documents[0]
+    retrieval = _retrieve_chunks_for_documents(
+        db,
+        document_ids=selected_document_ids,
+        learning_outcome_id=learning_outcome_id,
+        topic=topic,
+        top_k=requested_top_k,
+    )
 
     selected_chunk_ids = [chunk["chunk_id"] for chunk in retrieval["chunks"]]
-    chunks = _chunks_by_ids(list_document_chunks(db, document_id), selected_chunk_ids)
+    chunks = _chunks_by_ids(_list_chunks_for_documents(db, selected_document_ids), selected_chunk_ids)
     if not chunks:
         raise AIGenerationError("No selected chunks were available for question generation")
 
+    existing_question_texts = list_recent_question_texts_for_prompt(
+        db,
+        course_id=primary_document.course_id,
+        document_ids=selected_document_ids,
+        limit=20,
+    )
     messages = build_question_generation_messages(
-        course=document.course,
+        course=primary_document.course,
         learning_outcome=learning_outcome,
         chunks=chunks,
         question_type=question_type,
@@ -90,13 +95,15 @@ def generate_questions_from_chunks(
         num_questions=requested_count,
         topic=topic,
         diversity_mode=diversity_mode,
+        existing_question_texts=existing_question_texts,
     )
 
     provider_metadata = get_llm_provider_metadata()
     trace_metadata = {
-        "document_id": document_id,
+        "document_id": primary_document_id,
+        "document_ids": selected_document_ids,
         "learning_outcome_id": learning_outcome_id,
-        "course_id": document.course_id,
+        "course_id": primary_document.course_id,
         "topic": topic,
         "question_type": question_type,
         "difficulty": difficulty,
@@ -106,14 +113,14 @@ def generate_questions_from_chunks(
         "llm_provider": provider_metadata.provider,
         "llm_model": provider_metadata.model,
         "llm_temperature": provider_metadata.temperature,
-        "user_id": document.uploaded_by,
+        "user_id": primary_document.uploaded_by,
     }
     tracer = LangfuseAIGenerationTracer(
         metadata=trace_metadata,
         messages=messages,
         llm_provider=provider_metadata.provider,
         llm_model=provider_metadata.model,
-        user_id=document.uploaded_by,
+        user_id=primary_document.uploaded_by,
     )
     tracer.start()
 
@@ -136,7 +143,11 @@ def generate_questions_from_chunks(
             max_questions=requested_count,
         )
         parse_warnings = parsed_batch.warnings
-        existing_questions = list_questions_for_quality_check(db, course_id=document.course_id, document_id=document_id)
+        existing_questions = list_questions_for_quality_check_by_document_ids(
+            db,
+            course_id=primary_document.course_id,
+            document_ids=selected_document_ids,
+        )
         quality_result = validate_generated_questions(
             parsed_batch.questions,
             question_type=question_type,
@@ -193,9 +204,9 @@ def generate_questions_from_chunks(
         [
             {
                 **question,
-                "course_id": document.course_id,
+                "course_id": primary_document.course_id,
                 "learning_outcome_id": learning_outcome_id,
-                "document_id": document_id,
+                "document_id": primary_document_id,
                 "question_type": question_type,
                 "difficulty": difficulty,
                 "status": "pending_review",
@@ -227,7 +238,8 @@ def generate_questions_from_chunks(
 
     return {
         "generated": len(saved_questions),
-        "document_id": document_id,
+        "document_id": primary_document_id,
+        "document_ids": selected_document_ids,
         "learning_outcome_id": learning_outcome_id,
         "source_chunk_ids": selected_chunk_ids,
         "warnings": warnings,
@@ -240,6 +252,74 @@ def _validate_generation_request(question_type: str, difficulty: str) -> None:
         raise AIGenerationError("question_type must be one of: mcq, essay")
     if difficulty not in {"easy", "medium", "hard"}:
         raise AIGenerationError("difficulty must be one of: easy, medium, hard")
+
+
+def _normalize_document_ids(document_id: int | None, document_ids: list[int] | None) -> list[int]:
+    values = document_ids if document_ids is not None else ([document_id] if document_id is not None else [])
+    normalized = []
+    for value in values:
+        if value is None:
+            continue
+        if value not in normalized:
+            normalized.append(value)
+    if not normalized:
+        raise AIGenerationError("At least one document_id is required")
+    return normalized
+
+
+def _get_generation_documents(db: Session, document_ids: list[int], course_id: int) -> list:
+    documents = []
+    for selected_document_id in document_ids:
+        document = get_document(db, selected_document_id)
+        if document is None:
+            raise AIGenerationError("Document not found", status_code=404, error="Not found")
+        if document.status != "processed":
+            raise AIGenerationError("Document must be processed before question generation")
+        if document.course_id != course_id:
+            raise AIGenerationError("All selected documents must belong to the learning outcome course")
+        documents.append(document)
+    return documents
+
+
+def _retrieve_chunks_for_documents(
+    db: Session,
+    *,
+    document_ids: list[int],
+    learning_outcome_id: int,
+    topic: str | None,
+    top_k: int,
+) -> dict:
+    merged_chunks = []
+    for selected_document_id in document_ids:
+        try:
+            retrieval = retrieve_relevant_chunks(
+                db,
+                document_id=selected_document_id,
+                learning_outcome_id=learning_outcome_id,
+                topic=topic,
+                top_k=top_k,
+            )
+        except RetrievalError as exc:
+            raise AIGenerationError(exc.detail, status_code=exc.status_code, error=exc.error) from exc
+        merged_chunks.extend(retrieval["chunks"])
+
+    if not merged_chunks:
+        raise AIGenerationError("No relevant chunks found for the selected documents")
+
+    return {
+        "document_ids": document_ids,
+        "learning_outcome_id": learning_outcome_id,
+        "topic": topic,
+        "top_k": top_k,
+        "chunks": sorted(merged_chunks, key=lambda chunk: (-chunk["score"], chunk.get("chunk_index", 0))),
+    }
+
+
+def _list_chunks_for_documents(db: Session, document_ids: list[int]) -> list[DocumentChunk]:
+    chunks = []
+    for selected_document_id in document_ids:
+        chunks.extend(list_document_chunks(db, selected_document_id))
+    return chunks
 
 
 def _chunks_by_ids(chunks: list[DocumentChunk], selected_chunk_ids: list[int]) -> list[DocumentChunk]:
