@@ -52,16 +52,26 @@ def list_questions_for_quality_check(db: Session, *, course_id: int, document_id
     return list(db.scalars(statement).all())
 
 
+def list_questions_for_quality_check_by_document_ids(
+    db: Session,
+    *,
+    course_id: int,
+    document_ids: list[int],
+) -> list[Question]:
+    statement = select(Question).where(Question.course_id == course_id, Question.document_id.in_(document_ids))
+    return list(db.scalars(statement).all())
+
+
 def list_recent_question_texts_for_prompt(
     db: Session,
     *,
     course_id: int,
-    document_id: int,
+    document_ids: list[int],
     limit: int = 20,
 ) -> list[str]:
     statement = (
         select(Question.question_text)
-        .where(Question.course_id == course_id, Question.document_id == document_id)
+        .where(Question.course_id == course_id, Question.document_id.in_(document_ids))
         .order_by(Question.created_at.desc(), Question.id.desc())
         .limit(limit)
     )

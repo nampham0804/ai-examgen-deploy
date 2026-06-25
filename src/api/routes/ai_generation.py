@@ -15,6 +15,7 @@ def post_generate_questions(payload: QuestionGenerationRequest, db: Session = De
         result = generate_questions_from_chunks(
             db,
             document_id=payload.document_id,
+            document_ids=payload.document_ids,
             learning_outcome_id=payload.learning_outcome_id,
             question_type=payload.question_type,
             difficulty=payload.difficulty,

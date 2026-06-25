@@ -106,7 +106,8 @@ export type GeneratedQuestion = {
 };
 
 export type GenerateQuestionsRequest = {
-  document_id: number;
+  document_id?: number;
+  document_ids?: number[];
   learning_outcome_id: number;
   question_type: 'mcq' | 'essay';
   difficulty: 'easy' | 'medium' | 'hard';
@@ -118,7 +119,8 @@ export type GenerateQuestionsRequest = {
 
 export type GenerateQuestionsResponse = {
   generated: number;
-  document_id: number;
+  document_id?: number | null;
+  document_ids?: number[] | null;
   learning_outcome_id: number;
   source_chunk_ids: number[];
   warnings: string[];
