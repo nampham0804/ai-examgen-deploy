@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.schemas.question import QuestionRead
 
@@ -8,7 +8,7 @@ class QuestionGenerationRequest(BaseModel):
     learning_outcome_id: int
     question_type: str
     difficulty: str
-    num_questions: int = 5
+    num_questions: int = Field(default=3, ge=1, le=5)
     topic: str | None = None
     top_k: int = 5
     diversity_mode: bool = True

@@ -17,6 +17,7 @@ def build_question_generation_messages(
     num_questions: int,
     topic: str | None,
     diversity_mode: bool,
+    existing_question_texts: list[str] | None = None,
 ) -> list[dict[str, str]]:
     return [
         {
@@ -37,6 +38,7 @@ def build_question_generation_messages(
                 num_questions=num_questions,
                 topic=topic,
                 diversity_mode=diversity_mode,
+                existing_question_texts=existing_question_texts or [],
             ),
         },
     ]
@@ -52,6 +54,7 @@ def _build_user_prompt(
     num_questions: int,
     topic: str | None,
     diversity_mode: bool,
+    existing_question_texts: list[str],
 ) -> str:
     payload = {
         "course": _course_payload(course),
@@ -69,12 +72,19 @@ def _build_user_prompt(
             "diversity_mode": diversity_mode,
         },
         "source_chunks": [_chunk_payload(chunk) for chunk in chunks],
+        "existing_questions_to_avoid": [
+            {"question_text": text}
+            for text in existing_question_texts[:20]
+            if text.strip()
+        ],
     }
     schema = _mcq_schema() if question_type == "mcq" else _essay_schema()
     return (
         "Use only the source_chunks in this request. Do not use outside knowledge. "
         "If the chunks do not contain enough evidence, generate fewer questions rather than inventing facts. "
         "Avoid duplicate or near-duplicate questions. "
+        "Do not repeat or paraphrase existing_questions_to_avoid. "
+        "Each question should assess a different concept or aspect from the available chunks. "
         "Set source_chunk_ids to the chunk_id values that support each question. "
         "Return JSON only with this shape:\n"
         f"{schema}\n\n"
