@@ -1,16 +1,27 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from src.repositories.database import get_db
 from src.repositories.document_chunk_repository import list_document_chunks
-from src.repositories.document_repository import get_document
-from src.schemas.document import DocumentExtractRead, DocumentRead, DocumentUploadRead
+from src.repositories.document_repository import get_document, list_documents
+from src.schemas.document import (
+    DocumentExtractRead,
+    DocumentListItemRead,
+    DocumentListRead,
+    DocumentRead,
+    DocumentUploadRead,
+)
 from src.schemas.document_chunk import DocumentChunkRead
 from src.services.document_service import DocumentUploadError, upload_document
 from src.services.extraction_service import DocumentExtractionError, extract_and_chunk_document
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+VALID_DOCUMENT_STATUSES = {"uploaded", "processing", "processed", "failed"}
+VALID_DOCUMENT_TYPES = {"syllabus", "lecture", "old_exam", "instructor_rule", "external_reference"}
+DEFAULT_LIMIT = 20
+MAX_LIMIT = 100
 
 
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
@@ -40,6 +51,43 @@ async def post_document_upload(
         "data": DocumentUploadRead.model_validate(document),
         "message": "Upload successful",
     }
+
+
+@router.get("")
+def get_documents(
+    course_id: int | None = None,
+    status_filter: str | None = Query(default=None, alias="status"),
+    document_type: str | None = None,
+    limit: str | None = None,
+    offset: str | None = None,
+    db: Session = Depends(get_db),
+):
+    try:
+        parsed_limit, parsed_offset = _pagination(limit, offset)
+    except ValueError as exc:
+        return _validation_response(str(exc))
+    if status_filter is not None and status_filter not in VALID_DOCUMENT_STATUSES:
+        return _validation_response("status must be one of: uploaded, processing, processed, failed")
+    if document_type is not None and document_type not in VALID_DOCUMENT_TYPES:
+        return _validation_response(
+            "document_type must be one of: syllabus, lecture, old_exam, instructor_rule, external_reference"
+        )
+
+    items, total = list_documents(
+        db,
+        course_id=course_id,
+        status=status_filter,
+        document_type=document_type,
+        limit=parsed_limit,
+        offset=parsed_offset,
+    )
+    data = DocumentListRead(
+        items=[DocumentListItemRead.model_validate(document) for document in items],
+        total=total,
+        limit=parsed_limit,
+        offset=parsed_offset,
+    )
+    return {"data": data, "message": "Documents retrieved"}
 
 
 @router.get("/{document_id}")
@@ -80,3 +128,28 @@ def get_document_chunks(document_id: int, db: Session = Depends(get_db)):
 
     chunks = [DocumentChunkRead.model_validate(chunk) for chunk in list_document_chunks(db, document_id)]
     return {"data": chunks, "message": "Document chunks loaded"}
+
+
+def _pagination(limit: str | None, offset: str | None) -> tuple[int, int]:
+    parsed_limit = _parse_int(limit or str(DEFAULT_LIMIT), "limit")
+    parsed_offset = _parse_int(offset or "0", "offset")
+    if parsed_limit < 1 or parsed_limit > MAX_LIMIT:
+        raise _validation_exception("limit must be between 1 and 100")
+    if parsed_offset < 0:
+        raise _validation_exception("offset must be greater than or equal to 0")
+    return parsed_limit, parsed_offset
+
+
+def _parse_int(value: str, field_name: str) -> int:
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise _validation_exception(f"{field_name} must be an integer") from exc
+
+
+def _validation_exception(detail: str) -> ValueError:
+    return ValueError(detail)
+
+
+def _validation_response(detail: str) -> JSONResponse:
+    return JSONResponse(status_code=400, content={"error": "Invalid request", "detail": detail})

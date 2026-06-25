@@ -1,12 +1,8 @@
-# C2-App-141
+# AI Exam Generator (C2-App-141)
 
-Repository for the team AI agent project.
+Hệ thống AI hỗ trợ giáo viên tự động tạo đề thi (Exam Generation) từ Ngân hàng câu hỏi (Question Bank) dựa trên Ma trận đề thi (Blueprint). Dự án tích hợp LLM Agent (LangGraph) để sinh và xác thực câu hỏi, kết hợp với giao diện React hiện đại.
 
-The current codebase is organized for a FastAPI backend, a LangGraph agent,
-an optional frontend application, project documentation, weekly reports, and
-evaluation artifacts.
-
-## Repository Structure
+## 📂 Repository Structure
 
 ```text
 C2-App-141/
@@ -38,16 +34,13 @@ C2-App-141/
 |
 |-- docs/                     # Technical and product documentation
 |   |-- architecture.md       # System architecture overview
-|   |-- architecture_diagram.md
 |   |-- api_spec.md           # API contract and examples
-|   |-- product_requirements.md
-|   |-- deployment.md
+|   |-- deployment.md         # Deployment instructions
 |   `-- guide/                # Original AI20K technical guide reference
 |
 |-- reports/                  # Team deliverable reports
 |   |-- weekly/               # Weekly reports and reusable template
-|   |-- Gate-1/               # Gate 1 report assets and screenshots
-|   |-- evaluation_report.md
+|   |-- evaluation_report.md  # Evaluation metrics and manual test cases
 |   `-- final/                # Final report and demo script
 |
 |-- data/                     # Local data folders; contents ignored by Git
@@ -56,97 +49,125 @@ C2-App-141/
 |   `-- vector_store/         # Local vector DB files
 |
 |-- tests/                    # Backend test suite
-|   |-- test_api/
-|   |-- test_agents/
-|   |-- test_services/
-|   `-- conftest.py
-|
 |-- eval/                     # Evaluation assets and outputs
-|   |-- datasets/             # Evaluation datasets
-|   |-- results/              # Evaluation run outputs
-|   `-- metrics.py            # Metric helpers
-|
 |-- presentation/             # Pitch deck and video demo materials
-|-- scripts/                  # Setup and AI logging scripts
-|-- .github/                  # GitHub Actions workflows
-|-- .ai-log/                  # Local AI usage logs; content ignored by Git
-|-- .claude/ .codex/ .cursor/ .gemini/
-|                             # AI tool hook configs
-`-- .agents/                  # Antigravity rules and workflows
+`-- scripts/                  # Setup and AI logging scripts
 ```
 
-## Backend
+## 🚀 Setup Instructions
 
-The backend lives in `src/`.
+Dự án bao gồm 2 phần chính: Backend (FastAPI) và Frontend (React/Vite).
 
-Important folders:
+### 1. Database Setup (Tùy chọn)
 
-- `src/api/`: FastAPI routes and dependencies
-- `src/agents/`: LangGraph graph, state, nodes, tools, and prompts
-- `src/services/`: LLM, RAG, embedding, and monitoring services
-- `src/models/`: Pydantic schemas
-- `src/repositories/`: database access layer
-- `src/utils/`: shared utility helpers
-
-Run locally:
+Dự án sử dụng PostgreSQL. Nếu bạn đã cài đặt Docker, cách nhanh nhất để khởi chạy Database là:
 
 ```bash
+docker-compose up -d db
+```
+Hệ thống sẽ tự động tạo một database PostgreSQL tại `localhost:5432`.
+
+### 2. Backend (FastAPI + LangGraph)
+
+Yêu cầu: Python 3.10+
+
+```bash
+# Di chuyển vào thư mục dự án
+cd C2-App-141
+
+# Tạo và kích hoạt môi trường ảo
+python -m venv .venv
+source .venv/bin/activate  # Trên Windows dùng: .venv\Scripts\activate
+
+# Cài đặt thư viện
 pip install -r requirements.txt
+
+# Khởi chạy Backend
 uvicorn src.main:app --reload --port 8000
 ```
+Swagger UI (API Docs) sẽ có mặt tại: `http://localhost:8000/docs`
 
-Open API docs:
+### 3. Frontend (React + Vite + TailwindCSS)
 
-```text
-http://localhost:8000/docs
-```
-
-## Frontend
-
-Frontend code should be placed in `frontend/`.
-
-This keeps Node.js dependencies, UI source code, and frontend deployment separate
-from the Python backend.
-
-## Reports
-
-Weekly reports are stored in:
-
-```text
-reports/weekly/
-```
-
-Use `reports/weekly/template.md` when creating a new weekly report.
-
-Final deliverables are stored in:
-
-```text
-reports/final/
-presentation/
-eval/
-```
-
-## Documentation
-
-Core project documentation:
-
-- `docs/product_requirements.md`
-- `docs/architecture.md`
-- `docs/api_spec.md`
-- `docs/deployment.md`
-
-The original technical guide remains in `docs/guide/` for reference.
-
-## Tests
-
-Run backend tests:
+Yêu cầu: Node.js 18+
 
 ```bash
-pytest tests/ -v
+# Mở một terminal mới, chuyển vào thư mục frontend
+cd C2-App-141/frontend
+
+# Cài đặt dependencies
+npm install
+
+# Khởi chạy Frontend
+npm run dev
+```
+Truy cập giao diện Web tại: `http://localhost:5173`
+
+---
+
+## ⚙️ Environment Variables (.env)
+
+Tạo một file `.env` ở thư mục gốc (bạn có thể copy từ `.env.example`) và cấu hình các biến sau:
+
+```env
+# ---- LLM Configuration ----
+LLM_PROVIDER=minimax
+MINIMAX_API_KEY=sk-your-key-here
+MINIMAX_BASE_URL=https://api.tokenrouter.com/v1
+MINIMAX_MODEL=MiniMax-M3
+
+# Hoặc dùng OpenAI/Anthropic:
+# OPENAI_API_KEY=sk-...
+# DEFAULT_MODEL=gpt-4o
+
+# ---- Database ----
+# Chuỗi kết nối đến PostgreSQL (Nếu dùng Docker compose như trên thì giữ nguyên)
+DATABASE_URL=postgresql://user:password@localhost:5432/dbname
+
+# ---- App Config ----
+APP_PORT=8000
+CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 ```
 
-## Environment
+---
 
-Copy `.env.example` to `.env` and fill in required values such as API keys,
-database connection strings, and deployment settings.
+## 💡 Sample Queries (API)
 
+Dưới đây là một số ví dụ để tương tác trực tiếp với API Backend qua `curl`.
+
+### 1. Lấy danh sách Môn học (Courses)
+```bash
+curl -X GET "http://localhost:8000/api/v1/courses" \
+  -H "Accept: application/json"
+```
+
+### 2. Tạo một Ma trận đề thi mới (Blueprint)
+```bash
+curl -X POST "http://localhost:8000/api/v1/blueprints" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Đề thi Giữa kỳ CS101",
+    "course_id": 1,
+    "items": [
+      {
+        "learning_outcome_id": 1,
+        "question_type": "mcq",
+        "easy_count": 2,
+        "medium_count": 2,
+        "hard_count": 1
+      }
+    ]
+  }'
+```
+
+### 3. Sinh đề thi tự động từ Blueprint (Generate Exam)
+```bash
+# Thay số 1 bằng blueprint_id thực tế
+curl -X POST "http://localhost:8000/api/v1/exams/generate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "blueprint_id": 1,
+    "title": "Đề thi chính thức",
+    "duration_minutes": 60
+  }'
+```

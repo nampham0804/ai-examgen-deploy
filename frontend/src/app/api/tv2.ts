@@ -45,8 +45,28 @@ export type DocumentExtract = {
   extraction_method: string;
 };
 
+export type ExistingDocument = {
+  id: number;
+  course_id: number;
+  file_name: string;
+  document_type: string;
+  status: 'uploaded' | 'processing' | 'processed' | 'failed';
+  page_count?: number | null;
+  text_length?: number | null;
+  chunk_count: number;
+  created_at: string;
+};
+
+export type DocumentListResponse = {
+  items: ExistingDocument[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 export type QuestionOption = {
-  label: string;
+  label?: string;
+  key?: string;
   text: string;
 };
 
@@ -120,6 +140,22 @@ export async function extractDocument(documentId: number): Promise<DocumentExtra
   return requestJson<DocumentExtract>(`/documents/${documentId}/extract`, {
     method: 'POST',
   });
+}
+
+export async function listDocuments(params: {
+  course_id: number;
+  status?: string;
+  document_type?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<DocumentListResponse> {
+  const query = new URLSearchParams();
+  query.set('course_id', String(params.course_id));
+  if (params.status) query.set('status', params.status);
+  if (params.document_type) query.set('document_type', params.document_type);
+  if (params.limit) query.set('limit', String(params.limit));
+  if (params.offset) query.set('offset', String(params.offset));
+  return requestJson<DocumentListResponse>(`/documents?${query.toString()}`);
 }
 
 export async function generateQuestions(payload: GenerateQuestionsRequest): Promise<GenerateQuestionsResponse> {
