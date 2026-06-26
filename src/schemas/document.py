@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 DocumentType = Literal["syllabus", "lecture", "old_exam", "instructor_rule", "external_reference"]
+DocumentStatus = Literal["uploaded", "processing", "processed", "failed"]
 
 
 class DocumentRead(BaseModel):
@@ -26,6 +27,27 @@ class DocumentRead(BaseModel):
     error_message: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class DocumentListItemRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    course_id: int
+    file_name: str
+    document_type: DocumentType
+    status: DocumentStatus
+    page_count: int | None = None
+    text_length: int | None = None
+    chunk_count: int
+    created_at: datetime
+
+
+class DocumentListRead(BaseModel):
+    items: list[DocumentListItemRead]
+    total: int
+    limit: int
+    offset: int
 
 
 class DocumentUploadRead(BaseModel):
