@@ -57,7 +57,9 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
       await fetchPreview(); 
     } catch (e: any) {
       console.error(e);
-      alert(e.message || "Failed to swap question. Might not have alternatives.");
+      const errMsg = e.response?.data?.detail || e.message || "Không còn câu hỏi tương tự trong Ngân hàng đề đáp ứng điều kiện. Vui lòng bổ sung thêm câu hỏi mới.";
+      setActionAlert({ type: 'error', message: errMsg });
+      setTimeout(() => setActionAlert(null), 5000);
     } finally {
       setSwappingId(null);
     }

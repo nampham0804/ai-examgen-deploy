@@ -323,17 +323,19 @@ class ExamService:
         if not criteria_id:
             raise HTTPException(status_code=400, detail="Question cannot be swapped because it has no criteria_id")
 
-        # 2. Get properties from blueprint criteria
-        c_query = text("SELECT learning_outcome_id, question_type, difficulty FROM exam_blueprint_items WHERE id = :c_id")
-        c_row = self.db.execute(c_query, {"c_id": criteria_id}).fetchone()
+        # 2. Get properties from the current question instead of blueprint criteria directly
+        # because exam_blueprint_items doesn't store difficulty directly for a specific question slot.
+        q_query = text("SELECT learning_outcome_id, question_type, difficulty FROM questions WHERE id = :q_id")
+        c_row = self.db.execute(q_query, {"q_id": current_q_id}).fetchone()
         if not c_row:
-            raise HTTPException(status_code=404, detail="Blueprint criteria not found")
+            raise HTTPException(status_code=404, detail="Original question properties not found")
 
         lo_id, q_type, difficulty = c_row
 
         # 3. Find all existing question IDs in this exam to avoid duplicates
         existing_qs_query = text("SELECT question_id FROM exam_questions WHERE exam_id = :exam_id")
         existing_qs = [r[0] for r in self.db.execute(existing_qs_query, {"exam_id": exam_id}).fetchall()]
+        existing_qs_tuple = tuple(existing_qs) if existing_qs else (-1,)
 
         # 4. Find an alternative question matching the exact criteria
         alt_query = text("""
@@ -343,7 +345,7 @@ class ExamService:
               AND question_type = :q_type
               AND difficulty = :difficulty
               AND status = 'approved'
-              AND id != ALL(:existing_qs)
+              AND id NOT IN :existing_qs
             ORDER BY RANDOM()
             LIMIT 1
         """)
@@ -353,11 +355,11 @@ class ExamService:
             "lo_id": lo_id,
             "q_type": q_type,
             "difficulty": difficulty,
-            "existing_qs": existing_qs
+            "existing_qs": existing_qs_tuple
         }).fetchone()
 
         if not alt_row:
-            raise HTTPException(status_code=400, detail="No alternative question available matching these criteria")
+            raise HTTPException(status_code=400, detail="Không còn câu hỏi tương tự trong Ngân hàng đề đáp ứng điều kiện. Vui lòng bổ sung thêm câu hỏi mới.")
 
         new_q_id = alt_row[0]
 
