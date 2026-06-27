@@ -22,12 +22,12 @@ import type {
   LearningOutcome,
 } from '../api/tv2';
 
-const workflowSteps = [
-  { id: 1, label: 'Document Upload', icon: Upload },
-  { id: 2, label: 'Knowledge Extraction', icon: FileText },
-  { id: 3, label: 'LO Understanding', icon: Check },
-  { id: 4, label: 'Question Generation', icon: Sparkles },
-  { id: 5, label: 'Pending Review', icon: Check },
+const workflowStepsKeys = [
+  { id: 1, labelKey: 'ai.step1', icon: Upload },
+  { id: 2, labelKey: 'ai.step2', icon: FileText },
+  { id: 3, labelKey: 'ai.step3', icon: Check },
+  { id: 4, labelKey: 'ai.step4', icon: Sparkles },
+  { id: 5, labelKey: 'ai.step5', icon: Check },
 ];
 
 type QuestionType = 'mcq' | 'essay';
@@ -48,6 +48,11 @@ type ActiveDocument = {
 
 export default function AIGeneration() {
   const { t } = useApp();
+
+  const workflowSteps = useMemo(() => workflowStepsKeys.map(step => ({
+    ...step,
+    label: t(step.labelKey)
+  })), [t]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [learningOutcomes, setLearningOutcomes] = useState<LearningOutcome[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState('');
@@ -515,7 +520,7 @@ export default function AIGeneration() {
             </select>
             {selectedCourseId && <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">course_id={selectedCourseId}</p>}
             {!loading.courses && courses.length === 0 && (
-              <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">No courses are available from the backend yet.</p>
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{t('ai.noCourses')}</p>
             )}
           </div>
 
@@ -538,7 +543,7 @@ export default function AIGeneration() {
               <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">learning_outcome_id={selectedLearningOutcomeId}</p>
             )}
             {selectedCourseId && !loading.learningOutcomes && learningOutcomes.length === 0 && (
-              <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">No learning outcomes are available for this course.</p>
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{t('ai.noLOs')}</p>
             )}
           </div>
 
@@ -546,8 +551,8 @@ export default function AIGeneration() {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('ai.uploadDocuments')}</label>
             <label className="block border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 dark:hover:border-blue-400 transition-colors cursor-pointer">
               <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-600 dark:text-gray-400">{selectedFile ? selectedFile.name : 'Click to choose a file'}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">PDF or DOCX, max 15 MB</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{selectedFile ? selectedFile.name : t('ai.clickToChoose')}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{t('ai.fileHint')}</p>
               <input
                 type="file"
                 accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -569,7 +574,7 @@ export default function AIGeneration() {
             {activeDocument && (
               <div className="mt-3 text-xs text-gray-600 dark:text-gray-400 space-y-1">
                 <p>active_document_id={activeDocument.id}</p>
-                <p>source={activeDocument.source === 'session' ? 'uploaded this session' : 'selected from history'}</p>
+                <p>source={activeDocument.source === 'session' ? t('ai.sourceSession') : t('ai.sourceHistory')}</p>
                 <p>status={activeDocument.status}</p>
                 <p>page_count={activeDocument.page_count ?? 'n/a'}</p>
               </div>
@@ -580,7 +585,7 @@ export default function AIGeneration() {
             <div className="flex items-center justify-between gap-3 mb-3">
               <div>
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Existing Documents</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-500">Reuse uploaded materials for the selected course.</p>
+                <p className="text-xs text-gray-500 dark:text-gray-500">{t('ai.reuseMaterials')}</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -604,11 +609,11 @@ export default function AIGeneration() {
             </div>
 
             {!selectedCourseId && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">Select a course to load existing documents.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('ai.selectCourseLoad')}</p>
             )}
 
             {selectedCourseId && !loading.documents && existingDocuments.length === 0 && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">No uploaded documents found for this course.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t('ai.noDocuments')}</p>
             )}
 
             {existingDocuments.length > 0 && (
@@ -700,7 +705,7 @@ export default function AIGeneration() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Extract & Chunk</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-500">Required before generation.</p>
+                <p className="text-xs text-gray-500 dark:text-gray-500">{t('ai.requiredBeforeGen')}</p>
               </div>
               <button
                 onClick={handleExtract}
@@ -720,7 +725,7 @@ export default function AIGeneration() {
               </div>
             )}
             {!activeDocument && (
-              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Upload a document before extraction.</p>
+              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t('ai.uploadBeforeExtract')}</p>
             )}
           </div>
 
@@ -772,7 +777,7 @@ export default function AIGeneration() {
                   onChange={(event) => setNumQuestions(clampQuestionCount(Number(event.target.value)))}
                   className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Allowed range: 1-5 questions. Default is 3.</p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('ai.allowedRange')}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">top_k</label>
@@ -868,6 +873,7 @@ function DocumentSummary({
   pendingCount: number;
   nextAction: string;
 }) {
+  const { t } = useApp();
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -890,14 +896,14 @@ function DocumentSummary({
       {activeDocument && (
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
           <Badge tone={activeDocument.source === 'session' ? 'green' : 'blue'}>
-            {activeDocument.source === 'session' ? 'uploaded this session' : 'selected from history'}
+            {activeDocument.source === 'session' ? t('ai.sourceSession') : t('ai.sourceHistory')}
           </Badge>
           <span className="truncate">file_name={activeDocument.file_name}</span>
         </div>
       )}
 
       <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-200">
-        <p className="font-medium">Next step</p>
+        <p className="font-medium">{t('ai.nextStep')}</p>
         <p className="mt-1">{nextAction}</p>
       </div>
 
@@ -923,6 +929,7 @@ function QuestionPanel({
   activeDocumentsById: Map<number, ActiveDocument>;
   documentChunksById: Map<number, DocumentChunk>;
 }) {
+  const { t } = useApp();
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       <div className="flex items-center justify-between gap-3 mb-4">
@@ -982,7 +989,7 @@ function QuestionPanel({
                   </div>
                 )}
                 {!question.explanation && (
-                  <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">No explanation/source note was returned.</p>
+                  <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">{t('ai.noExplanation')}</p>
                 )}
               </div>
             </motion.div>
@@ -994,6 +1001,7 @@ function QuestionPanel({
 }
 
 function McqDetails({ question }: { question: GeneratedQuestion }) {
+  const { t } = useApp();
   const hasOptions = question.options && question.options.length > 0;
 
   return (
@@ -1011,7 +1019,7 @@ function McqDetails({ question }: { question: GeneratedQuestion }) {
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-amber-700 dark:text-amber-300">MCQ options are missing from this response.</p>
+        <p className="text-sm text-amber-700 dark:text-amber-300">{t('ai.mcqMissing')}</p>
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -1032,13 +1040,14 @@ function EssayDetails({ question }: { question: GeneratedQuestion }) {
 }
 
 function TextBlock({ label, value }: { label: string; value?: string | null }) {
+  const { t } = useApp();
   return (
     <div>
       <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</div>
       {value ? (
         <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-gray-800 dark:text-gray-200">{value}</p>
       ) : (
-        <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">Not provided.</p>
+        <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">{t('ai.notProvided')}</p>
       )}
     </div>
   );
@@ -1053,6 +1062,7 @@ function SourceEvidence({
   activeDocumentsById: Map<number, ActiveDocument>;
   documentChunksById: Map<number, DocumentChunk>;
 }) {
+  const { t } = useApp();
   if (ids.length === 0) return <Badge tone="amber">No source evidence returned</Badge>;
   const groups = groupSourceEvidence(ids, documentChunksById);
 
@@ -1077,7 +1087,7 @@ function SourceEvidence({
                     <p className="mt-2 text-xs font-medium text-blue-900 dark:text-blue-100">{chunk.title}</p>
                   )}
                   {chunk?.section_path && (
-                    <p className="mt-2 text-xs text-blue-800 dark:text-blue-200">Section: {chunk.section_path}</p>
+                    <p className="mt-2 text-xs text-blue-800 dark:text-blue-200">{t('ai.section')}: {chunk.section_path}</p>
                   )}
                   <p className="mt-2 text-sm leading-relaxed text-blue-900 dark:text-blue-100">
                     {chunk?.text ? previewText(chunk.text) : 'Source preview is unavailable for this chunk.'}

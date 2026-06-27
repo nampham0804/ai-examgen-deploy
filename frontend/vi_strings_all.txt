@@ -1,0 +1,71 @@
+
+--- Dashboard.tsx ---
+L41: text: `Tạo câu hỏi mới cho môn ${q.course} (${q.lo})`,
+L50: text: `Tạo đề thi: ${e.title} (${e.course})`,
+L128: { name: 'Dễ', value: dashboardStats.difficulty_distribution.easy },
+L129: { name: 'Trung bình', value: dashboardStats.difficulty_distribution.medium },
+L130: { name: 'Khó', value: dashboardStats.difficulty_distribution.hard },
+L141: { name: 'Dễ', value: dashboardStats.difficulty_distribution.easy },
+L142: { name: 'Trung bình', value: dashboardStats.difficulty_distribution.medium },
+L143: { name: 'Khó', value: dashboardStats.difficulty_distribution.hard },
+
+--- ExamBlueprint.tsx ---
+L220: setErrorMessage(error instanceof Error ? error.message : "Có lỗi xảy ra khi tải dữ liệu CLO hoặc Blueprint từ hệ thống.");
+L279: alert(t('blueprint.selectAtLeastOneType') || 'Vui lòng chọn ít nhất 1 loại câu hỏi (điền số lượng > 0)');
+L415: if (item.easy > availEasy) details.push(`CLO ${row.loCode} (${item.type}): Thiếu ${item.easy - availEasy} câu Dễ`);
+L416: if (item.medium > availMed) details.push(`CLO ${row.loCode} (${item.type}): Thiếu ${item.medium - availMed} câu Trung bình`);
+L417: if (item.hard > availHard) details.push(`CLO ${row.loCode} (${item.type}): Thiếu ${item.hard - availHard} câu Khó`);
+L456: title: `Ma trận đề thi - ${course?.code || 'Course'}`,
+L557: {t('blueprint.autoTypes') || 'Nhập số lượng cho từng loại câu hỏi'}
+L580: {t('blueprint.autoTotal') || 'Tổng'}: <span className="text-xl text-indigo-600 dark:text-indigo-400 font-bold ml-1">{Object.values(autoTypeCounts).reduce((a, b) => a + b, 0)}</span>
+L587: {t('blueprint.autoBtn') || 'Phân bổ tự động'}
+L629: Môn học này hiện chưa có Chuẩn đầu ra (CLO) nào trong CSDL. Vui lòng thêm CLO trước khi tạo Ma trận đề thi.
+L683: title="Xóa loại câu hỏi này"
+L779: <DialogTitle>Tỉ lệ phân bố chưa chuẩn</DialogTitle>
+L783: Tỉ lệ phân bố hiện tại đang là: <span className="font-semibold text-green-600">Dễ ({percentages.easy}%)</span> - <span className="font-semibold text-amber-600">TB ({percentages.medium}%)</span> - <span className="font-semibold text-red-600">Khó ({percentages.hard}%)</span>.
+L786: Tỉ lệ chuẩn được khuyến nghị là <strong>Dễ (30-50%), TB (30-50%), Khó (10-30%)</strong>. Việc lưu ma trận với tỉ lệ không chuẩn có thể ảnh hưởng đến chất lượng đề thi.
+L788: <p className="font-medium text-red-600 dark:text-red-400">Bạn có chắc chắn muốn lưu ma trận này không?</p>
+L791: <Button variant="outline" onClick={() => setShowUnbalancedWarning(false)}>Kiểm tra lại</Button>
+L792: <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={handleUnbalancedProceed}>Vẫn lưu</Button>
+L800: <DialogTitle>Thiếu câu hỏi trong Ngân hàng</DialogTitle>
+L804: Học phần này không đáp ứng đủ số câu hỏi theo Blueprint bạn vừa thiết lập. Blueprint sẽ được lưu dưới dạng <strong>Bản nháp (Draft)</strong> và không thể dùng để tạo đề thi cho đến khi bạn bổ sung đủ câu hỏi.
+L816: <p className="font-medium text-red-600 dark:text-red-400">Bạn muốn tiếp tục lưu Blueprint hay chuyển sang Ngân hàng để tạo thêm câu hỏi?</p>
+
+--- ExamGenerator.tsx ---
+L200: // 1. Tổng số câu: Lấy theo tổng số lượng câu hỏi được quy định trong Blueprint
+L203: // 2. Số LO phủ: Tổng số lượng chuẩn đầu ra có trong Blueprint đó
+L206: // 3. Loại câu hỏi: Hiển thị danh sách các định dạng câu hỏi
+L220: // 4. Blueprint Alignment: Thực hiện tính toán so khớp ma trận
+L229: // 4. Balance Score: Tính toán độ cân bằng phân bổ LO (sử dụng độ lệch chuẩn/CV)
+L232: // Gộp tổng số lượng câu hỏi cho từng learning_outcome_id
+L245: balanceScore = t('examGen.unbalancedLO'); // Thiếu LO so với môn học
+L248: balanceScore = t('examGen.veryBalancedLO'); // Chỉ có 1 LO
+L265: // Tính phần trăm loCoverage dựa trên totalCourseLOs
+L341: Quản lý đề thi
+L427: <option key={b.id} value={b.id}>{b.title} ({b.total_questions} {t('exam.questions')}) {b.status !== 'validated' ? '(Chưa đủ ĐK)' : ''}</option>
+L444: <AlertTitle>{alertInfo.type === 'success' ? 'Thành công' : alertInfo.type === 'info' ? 'Thông báo' : 'Lỗi'}</AlertTitle>
+L482: <span className="font-semibold text-gray-900 dark:text-white">{d.value} câu</span>
+L490: <p className="text-sm">Chọn Blueprint để xem phân phối độ khó</p>
+L539: Vui lòng thiết lập cấu hình ở bên trái và nhấn nút "Tạo đề thi" để AI tự động lấy câu hỏi ngẫu nhiên từ ngân hàng dựa trên ma trận (Blueprint).
+
+--- ExamList.tsx ---
+L155: <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Quản lý Đề thi</h1>
+L157: Xem, chỉnh sửa và quản lý tất cả các đề thi đã tạo
+L165: Tạo đề thi mới
+L199: <Filter className="w-3 h-3 inline mr-1" />Thời lượng
+L217: <Filter className="w-3 h-3 inline mr-1" />Số câu hỏi (từ - đến)
+L260: Số câu
+L266: Thời lượng
+L272: Ngày tạo
+L305: {exam.total_questions} câu
+L310: {exam.duration_minutes} phút
+L372: Hủy
+L380: Xóa
+L416: Xuất File
+
+--- ExamPreview.tsx ---
+L60: const errMsg = e.response?.data?.detail || e.message || "Không còn câu hỏi tương tự trong Ngân hàng đề đáp ứng điều kiện. Vui lòng bổ sung thêm câu hỏi mới.";
+L313: Đổi câu hỏi
+L383: <AlertTitle>{actionAlert.type === 'success' ? 'Thành công' : 'Lỗi'}</AlertTitle>
+L395: Lưu bản nháp
+L435: Xuất File

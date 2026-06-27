@@ -5,6 +5,7 @@ import {
   mockGetCourse,
   mockGetCourses,
   mockUpdateCourse,
+  mockGetCourseLearningOutcomes,
 } from '@/mocks/courses';
 import type { Course, CoursePayload } from '@/types/course';
 import type { LearningOutcome } from '@/types/learningOutcome';
@@ -62,7 +63,7 @@ export async function deleteCourse(id: number): Promise<void> {
 
 export async function getCourseLearningOutcomes(id: number): Promise<LearningOutcome[]> {
   if (useMock) {
-    return [];
+    return mockGetCourseLearningOutcomes(id);
   }
 
   const response = await api.get<ApiResponse<LearningOutcome[]>>(`/api/courses/${id}/learning-outcomes`);
