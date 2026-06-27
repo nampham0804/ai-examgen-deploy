@@ -1,5 +1,6 @@
 import { BlueprintCreatePayload, BlueprintUpdatePayload, BlueprintResponse, BlueprintListResponse, Blueprint, ValidationResultResponse, ValidationDetail } from '../types/exam';
 import { MOCK_BLUEPRINTS } from '../mocks/exam';
+import { mockQuestions } from '../mocks/questions';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
 const API_ROOT = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
@@ -135,24 +136,48 @@ export const blueprintApi = {
         if (index === -1) return reject(new Error("Blueprint not found"));
         const blueprint = mockBlueprints[index];
         
-        const details: ValidationDetail[] = blueprint.items.map(item => ({
-          learning_outcome_id: item.learning_outcome_id,
-          learning_outcome_code: `LO${item.learning_outcome_id}`,
-          question_type: item.question_type,
-          easy_required: item.easy_count,
-          easy_available: item.easy_count, // Mock: always have enough
-          medium_required: item.medium_count,
-          medium_available: item.medium_count,
-          hard_required: item.hard_count,
-          hard_available: item.hard_count,
-          is_valid: true,
-        }));
+        const details: ValidationDetail[] = blueprint.items.map(item => {
+          const relevantQuestions = mockQuestions.filter(q => 
+            q.learning_outcome_id === item.learning_outcome_id && 
+            q.question_type === item.question_type
+          );
 
-        blueprint.status = 'validated'; // Update status
+          const availableEasy = relevantQuestions.filter(q => q.difficulty === 'easy').length;
+          const availableMedium = relevantQuestions.filter(q => q.difficulty === 'medium').length;
+          const availableHard = relevantQuestions.filter(q => q.difficulty === 'hard').length;
+
+          const easyMissing = item.easy_count > availableEasy ? item.easy_count - availableEasy : 0;
+          const mediumMissing = item.medium_count > availableMedium ? item.medium_count - availableMedium : 0;
+          const hardMissing = item.hard_count > availableHard ? item.hard_count - availableHard : 0;
+          
+          const isValid = easyMissing === 0 && mediumMissing === 0 && hardMissing === 0;
+
+          const missingMsg = [];
+          if (easyMissing > 0) missingMsg.push(`Thiếu ${easyMissing} Easy`);
+          if (mediumMissing > 0) missingMsg.push(`Thiếu ${mediumMissing} Medium`);
+          if (hardMissing > 0) missingMsg.push(`Thiếu ${hardMissing} Hard`);
+
+          return {
+            learning_outcome_id: item.learning_outcome_id,
+            learning_outcome_code: `LO${item.learning_outcome_id}`,
+            question_type: item.question_type,
+            easy_required: item.easy_count,
+            easy_available: availableEasy,
+            medium_required: item.medium_count,
+            medium_available: availableMedium,
+            hard_required: item.hard_count,
+            hard_available: availableHard,
+            is_valid: isValid,
+            missing: isValid ? null : `${missingMsg.join(', ')} ${item.question_type} cho LO${item.learning_outcome_id}`,
+          };
+        });
+
+        const allValid = details.every(d => d.is_valid);
+        blueprint.status = allValid ? 'validated' : 'draft'; // Update status
 
         resolve({
           data: {
-            is_valid: true,
+            is_valid: allValid,
             total_required: blueprint.total_questions,
             details
           },
@@ -164,6 +189,15 @@ export const blueprintApi = {
       method: 'POST',
     });
     if (!response.ok) throw new Error('Failed to validate blueprint');
+    return response.json();
+  },
+
+  async checkEligibility(id: number): Promise<ValidationResultResponse> {
+    if (USE_MOCK) {
+      return this.validateBlueprint(id); // For mock, it's roughly the same
+    }
+    const response = await fetch(`${API_ROOT}/blueprints/${id}/eligibility`);
+    if (!response.ok) throw new Error('Failed to check blueprint eligibility');
     return response.json();
   }
 };

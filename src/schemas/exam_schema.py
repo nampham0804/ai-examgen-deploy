@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class ExamQuestionBase(BaseModel):
     question_id: int
     order_index: int
+    criteria_id: int | None = None
 
 class ExamQuestionResponse(ExamQuestionBase):
     id: int
@@ -35,6 +36,8 @@ class ExamDataResponse(ExamBase):
     created_by: int | None = None
     created_at: datetime
     updated_at: datetime
+    course_name: str | None = None
+    blueprint_name: str | None = None
     questions: list[ExamQuestionResponse] = []
 
     class Config:
@@ -61,6 +64,7 @@ class ExamPreviewQuestion(BaseModel):
     correct_answer: str | None = None
     sample_answer: str | None = None
     rubric: str | None = None
+    explanation: str | None = None
 
 class ExamPreviewData(BaseModel):
     id: int
@@ -68,8 +72,16 @@ class ExamPreviewData(BaseModel):
     course_name: str
     duration_minutes: int
     total_questions: int
+    status: str
     questions: list[ExamPreviewQuestion]
 
 class ExamPreviewResponse(BaseModel):
     data: ExamPreviewData
     message: str
+
+class ExamReorderItem(BaseModel):
+    id: int
+    order_index: int
+
+class ExamReorderRequest(BaseModel):
+    items: list[ExamReorderItem]

@@ -71,6 +71,26 @@ export const examApi = {
     return response.json();
   },
 
+  async updateExam(id: number, payload: { title?: string; duration_minutes?: number; status?: string }): Promise<ExamResponse> {
+    if (USE_MOCK) {
+      return new Promise((resolve, reject) => setTimeout(() => {
+        const index = mockExams.findIndex(e => e.id === id);
+        if (index === -1) return reject(new Error("Exam not found"));
+        if (payload.title) mockExams[index].title = payload.title;
+        if (payload.duration_minutes !== undefined) mockExams[index].duration_minutes = payload.duration_minutes;
+        if (payload.status) mockExams[index].status = payload.status as any;
+        resolve({ data: mockExams[index], message: "Mock exam updated successfully" });
+      }, 500));
+    }
+    const response = await fetch(`${API_ROOT}/exams/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Failed to update exam');
+    return response.json();
+  },
+
   async generateExam(id: number): Promise<ExamResponse> {
     if (USE_MOCK) {
       return new Promise((resolve, reject) => setTimeout(async () => {
@@ -122,15 +142,19 @@ export const examApi = {
         if (!exam) return reject(new Error("Exam not found"));
 
         // Generate dynamic questions based on total_questions
-        const questionPool = MOCK_EXAM_PREVIEW.questions;
+        const questionPool = [...MOCK_EXAM_PREVIEW.questions];
         const total = exam.total_questions || 6;
+        
+        // Shuffle pool
+        const shuffledPool = questionPool.sort(() => Math.random() - 0.5);
+        
         const questions: ExamPreviewQuestion[] = Array.from({ length: total }).map((_, i) => {
-          const baseQ = questionPool[i % questionPool.length];
+          const baseQ = shuffledPool[i % shuffledPool.length];
           return {
             ...baseQ,
             id: baseQ.id + i * 1000,
             exam_id: exam.id,
-            question_id: baseQ.question_id + i,
+            question_id: baseQ.question_id,
             order_index: i + 1,
             text: `[Câu ${i + 1}] ` + baseQ.text
           };
@@ -143,6 +167,7 @@ export const examApi = {
             course_name: MOCK_EXAM_PREVIEW.course_name,
             duration_minutes: exam.duration_minutes,
             total_questions: total,
+            status: exam.status,
             questions: questions
           },
           message: "Mock exam preview loaded"
@@ -158,28 +183,23 @@ export const examApi = {
   async swapQuestion(examId: number, questionId: number): Promise<{ data: { new_question_id: number; new_question: ExamPreviewQuestion }, message: string }> {
     if (USE_MOCK) {
       return new Promise((resolve) => setTimeout(() => {
-        const isMcq = Math.random() > 0.3;
-        const qId = Math.floor(Math.random() * 1000) + 1;
-        const diffs = ['easy', 'medium', 'hard'];
-        
-        const newQ: ExamPreviewQuestion = {
-          id: qId + 20000,
-          exam_id: examId,
-          question_id: qId,
-          order_index: 0, // Ignored in UI
-          text: `[ĐÃ ĐỔI] Nội dung câu hỏi thay thế mới mã ${qId}`,
-          type: isMcq ? 'Multiple Choice' : 'Essay',
-          difficulty: diffs[Math.floor(Math.random() * diffs.length)],
-          learning_outcome_code: `LO${Math.floor(Math.random() * 5) + 1}`,
-          options: isMcq ? ['Option 1', 'Option 2', 'Option 3', 'Option 4'] : undefined,
-          correct_answer: isMcq ? 'Option 1' : undefined,
-          sample_answer: !isMcq ? 'Đáp án mẫu mới...' : undefined,
-          rubric: !isMcq ? 'Rubric mới' : undefined
-        };
+        const pool = MOCK_EXAM_PREVIEW.questions;
+        const randomQ = pool[Math.floor(Math.random() * pool.length)];
+        const newId = Math.floor(Math.random() * 10000);
         
         resolve({
-          data: { new_question_id: qId, new_question: newQ },
-          message: "Swapped successfully"
+          data: {
+            new_question_id: newId,
+            new_question: {
+              ...randomQ,
+              id: newId,
+              exam_id: examId,
+              question_id: randomQ.question_id,
+              order_index: 0,
+              text: "[Đã đổi] " + randomQ.text
+            }
+          },
+          message: "Question swapped successfully"
         });
       }, 600));
     }
@@ -196,46 +216,14 @@ export const examApi = {
     return result; // We will adapt frontend to refetch if needed
   },
 
-  async exportToGift(id: number): Promise<Blob> {
+  async exportExam(id: number, format: string = 'gift'): Promise<Blob> {
     if (USE_MOCK) {
-      return new Promise((resolve, reject) => setTimeout(() => {
-        const exam = mockExams.find(e => e.id === id);
-        if (!exam && id !== MOCK_EXAM_PREVIEW.id) return reject(new Error("Exam not found"));
-
-        // For mock, just generate from MOCK_EXAM_PREVIEW or the exam's questions
-        const questions = id === MOCK_EXAM_PREVIEW.id ? MOCK_EXAM_PREVIEW.questions : exam?.questions || MOCK_EXAM_PREVIEW.questions;
-        
-        let giftContent = `// Exam ${exam?.title || MOCK_EXAM_PREVIEW.title}\n\n`;
-
-        // Format each question to GIFT
-        // MOCK_EXAM_PREVIEW.questions has the full question objects
-        const fullQuestions = MOCK_EXAM_PREVIEW.questions; 
-
-        fullQuestions.forEach((q, index) => {
-          const safeText = q.text.replace(/([{}~=#\:])/g, "\\$1");
-          if (q.type === 'Multiple Choice' && q.options) {
-            giftContent += `::Q${index + 1}::${safeText} {\n`;
-            q.options.forEach(opt => {
-              const safeOpt = opt.replace(/([{}~=#\:])/g, "\\$1");
-              if (opt === q.correct_answer) {
-                giftContent += `=${safeOpt}\n`;
-              } else {
-                giftContent += `~${safeOpt}\n`;
-              }
-            });
-            giftContent += `}\n\n`;
-          } else if (q.type === 'Essay') {
-            giftContent += `::Q${index + 1}::${safeText} {}\n\n`;
-          }
-        });
-
-        const blob = new Blob([giftContent], { type: 'text/plain;charset=utf-8' });
-        resolve(blob);
+      return new Promise(resolve => setTimeout(() => {
+        resolve(new Blob(['Mock file content'], { type: 'text/plain' }));
       }, 800));
     }
-    
-    const response = await fetch(`${API_ROOT}/exports/gift?exam_id=${id}`);
-    if (!response.ok) throw new Error('Failed to export to GIFT');
+    const response = await fetch(`${API_ROOT}/exports/${format}?exam_id=${id}`);
+    if (!response.ok) throw new Error(`Failed to export exam to ${format}`);
     return response.blob();
   },
 
@@ -264,6 +252,21 @@ export const examApi = {
     }
     const response = await fetch(`${API_ROOT}/exams/${id}`, { method: 'DELETE' });
     if (!response.ok) throw new Error('Failed to delete exam');
+    return response.json();
+  },
+
+  async reorderExam(id: number, items: { id: number, order_index: number }[]): Promise<any> {
+    if (USE_MOCK) {
+      return new Promise(resolve => setTimeout(() => {
+        resolve({ message: "Mock exam reordered successfully" });
+      }, 500));
+    }
+    const response = await fetch(`${API_ROOT}/exams/${id}/reorder`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    });
+    if (!response.ok) throw new Error('Failed to reorder exam');
     return response.json();
   }
 };

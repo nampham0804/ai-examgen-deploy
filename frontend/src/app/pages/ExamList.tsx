@@ -20,6 +20,12 @@ export default function ExamList() {
   const [deleteTarget, setDeleteTarget] = useState<Exam | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Export State
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportingExamId, setExportingExamId] = useState<number | null>(null);
+  const [selectedFormat, setSelectedFormat] = useState('gift');
+  const [isExporting, setIsExporting] = useState(false);
+
   // Filters
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -52,26 +58,32 @@ export default function ExamList() {
       setDeleteTarget(null);
     } catch (e) {
       console.error(e);
-      alert("Xóa đề thi thất bại!");
+      alert(t("common.error"));
     } finally {
       setDeleting(false);
     }
   };
 
-  const handleExportGift = async (id: number) => {
+  const handleExportSubmit = async () => {
+    if (!exportingExamId) return;
+    setExportModalOpen(false);
+    setIsExporting(true);
     try {
-      const blob = await examApi.exportToGift(id);
+      const blob = await examApi.exportExam(exportingExamId, selectedFormat);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `exam_${id}.gift`;
+      a.download = `exam_${exportingExamId}.${selectedFormat}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (e) {
       console.error(e);
-      alert("Xuất file GIFT thất bại!");
+      alert(t("exam.exportFailed").replace("{format}", selectedFormat.toUpperCase()));
+    } finally {
+      setIsExporting(false);
+      setExportingExamId(null);
     }
   };
 
@@ -162,7 +174,7 @@ export default function ExamList() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Tìm kiếm đề thi..."
+              placeholder={t("exam.searchPlaceholder")}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -177,7 +189,7 @@ export default function ExamList() {
           </div>
           <div>
             <p className="text-2xl font-bold text-gray-900 dark:text-white">{exams.length}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Tổng số đề thi</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{t('exam.totalExams')}</p>
           </div>
         </div>
 
@@ -191,11 +203,11 @@ export default function ExamList() {
             onChange={(e) => setFilterDuration(e.target.value)}
             className="w-full px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="all">Tất cả</option>
-            <option value="60">≤ 60 phút</option>
-            <option value="90">61 - 90 phút</option>
-            <option value="120">91 - 120 phút</option>
-            <option value="999">&gt; 120 phút</option>
+            <option value="all">{t('exam.all')}</option>
+            <option value="60">≤ 60 {t('exam.minutes')}</option>
+            <option value="90">{t('exam.duration_90')}</option>
+            <option value="120">{t('exam.duration_120')}</option>
+            <option value="999">&gt; 120 {t('exam.minutes')}</option>
           </select>
         </div>
 
@@ -208,7 +220,7 @@ export default function ExamList() {
             <input
               type="number"
               min="0"
-              placeholder="Từ"
+              placeholder={t("exam.from")}
               value={filterQuestionMin === '' ? '' : filterQuestionMin}
               onChange={(e) => setFilterQuestionMin(e.target.value ? parseInt(e.target.value) : '')}
               className="w-full px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
@@ -217,7 +229,7 @@ export default function ExamList() {
             <input
               type="number"
               min="0"
-              placeholder="Đến"
+              placeholder={t("exam.to")}
               value={filterQuestionMax === '' ? '' : filterQuestionMax}
               onChange={(e) => setFilterQuestionMax(e.target.value ? parseInt(e.target.value) : '')}
               className="w-full px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
@@ -235,14 +247,14 @@ export default function ExamList() {
         ) : filteredAndSortedExams.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-500">
             <FileText className="w-12 h-12 mb-3 opacity-30" />
-            <p className="text-lg font-medium">Chưa có đề thi nào</p>
-            <p className="text-sm mt-1">Nhấn "Tạo đề thi mới" để bắt đầu</p>
+            <p className="text-lg font-medium">{t('exam.noExams')}</p>
+            <p className="text-sm mt-1">{t('exam.clickToStart')}</p>
           </div>
         ) : (
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
-                <th className="text-left px-6 py-3.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tên đề thi</th>
+                <th className="text-left px-6 py-3.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('exam.name')}</th>
                 <th className="text-left px-6 py-3.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   <button onClick={() => toggleSort('total_questions')} className="flex items-center gap-1 hover:text-blue-600">
                     Số câu
@@ -261,8 +273,8 @@ export default function ExamList() {
                     <ArrowUpDown className="w-3 h-3" />
                   </button>
                 </th>
-                <th className="text-left px-6 py-3.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Chỉnh sửa lần cuối</th>
-                <th className="text-right px-6 py-3.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Thao tác</th>
+                <th className="text-left px-6 py-3.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('exam.lastEdited')}</th>
+                <th className="text-right px-6 py-3.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('exam.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -274,8 +286,18 @@ export default function ExamList() {
                         <FileText className="w-4 h-4" />
                       </div>
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white">{exam.title}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">ID: {exam.id}</p>
+                        <p className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                          {exam.title}
+                          <span className={`px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full ${
+                            exam.status === 'approved' ? 'bg-green-100 text-green-700 border border-green-200' :
+                            'bg-amber-100 text-amber-700 border border-amber-200'
+                          }`}>
+                            {exam.status === 'approved' ? 'Approved' : 'Draft'}
+                          </span>
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          {exam.course_name ? `${exam.course_name}` : ''}
+                        </p>
                       </div>
                     </div>
                   </td>
@@ -301,25 +323,20 @@ export default function ExamList() {
                         size="icon"
                         className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                         onClick={() => navigate(`/exam/${exam.id}/preview`)}
-                        title="Xem trước"
+                        title={t("exam.previewTitle")}
                       >
                         <Eye className="w-4 h-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
-                        onClick={() => navigate(`/exam/${exam.id}/edit`)}
-                        title="Chỉnh sửa"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
                         className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                        onClick={() => handleExportGift(exam.id)}
-                        title="Xuất GIFT"
+                        onClick={() => {
+                          setExportingExamId(exam.id);
+                          setExportModalOpen(true);
+                        }}
+                        title={t("exam.exportTitle")}
+                        disabled={exam.status !== 'approved'}
                       >
                         <Download className="w-4 h-4" />
                       </Button>
@@ -328,7 +345,7 @@ export default function ExamList() {
                         size="icon"
                         className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
                         onClick={() => setDeleteTarget(exam)}
-                        title="Xóa"
+                        title={t("exam.deleteTitle")}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -345,10 +362,10 @@ export default function ExamList() {
       <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Xác nhận xóa đề thi</DialogTitle>
+            <DialogTitle>{t('exam.confirmDelete')}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-gray-600 dark:text-gray-400 py-4">
-            Bạn có chắc chắn muốn xóa đề thi <strong>"{deleteTarget?.title}"</strong>? Hành động này không thể hoàn tác.
+            {t('exam.confirmDeleteMessage').replace('{title}', deleteTarget?.title || '')}
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
@@ -361,6 +378,42 @@ export default function ExamList() {
             >
               {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Xóa
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={exportModalOpen} onOpenChange={setExportModalOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>{t('exam.exportFormatTitle')}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-4">
+            {[
+              { id: 'gift', label: 'GIFT Format (.gift)' },
+              { id: 'xml', label: 'Moodle XML (.xml)' },
+              { id: 'doc', label: 'Microsoft Word (.doc)' },
+              { id: 'txt', label: 'Text Format (.txt)' }
+            ].map(fmt => (
+              <label key={fmt.id} className={`flex items-center space-x-3 p-3 border rounded-md cursor-pointer transition-colors ${selectedFormat === fmt.id ? 'border-blue-500 bg-blue-50' : 'hover:bg-slate-50 border-slate-200'}`}>
+                <input 
+                  type="radio" 
+                  name="export-format" 
+                  value={fmt.id} 
+                  checked={selectedFormat === fmt.id} 
+                  onChange={(e) => setSelectedFormat(e.target.value)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" 
+                />
+                <span className={`font-medium ${selectedFormat === fmt.id ? 'text-blue-700' : 'text-slate-700'}`}>
+                  {fmt.label}
+                </span>
+              </label>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExportModalOpen(false)}>{t('common.cancel')}</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleExportSubmit} disabled={isExporting}>
+              {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+              Xuất File
             </Button>
           </DialogFooter>
         </DialogContent>

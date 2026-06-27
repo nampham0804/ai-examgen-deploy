@@ -1,3 +1,22 @@
+export interface RecentQuestion {
+  id: number;
+  text: string;
+  course: string;
+  lo: string;
+  difficulty: string;
+  status: string;
+  created_at: string;
+}
+
+export interface RecentExam {
+  id: number;
+  title: string;
+  course: string;
+  total_questions: number;
+  status: string;
+  created_at: string;
+}
+
 export interface DashboardStats {
   courses: number;
   questions_total: number;
@@ -5,6 +24,14 @@ export interface DashboardStats {
   questions_approved: number;
   blueprints: number;
   exams: number;
+  difficulty_distribution?: {
+    easy: number;
+    medium: number;
+    hard: number;
+  };
+  type_distribution?: { name: string; value: number }[];
+  recent_questions?: RecentQuestion[];
+  recent_exams?: RecentExam[];
 }
 
 export interface DashboardResponse {

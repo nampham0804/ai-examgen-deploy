@@ -273,6 +273,12 @@ def _canonical_provider(provider: str) -> str:
 def _provider_prefix(provider: str) -> str:
     if provider == "minimax":
         return "MINIMAX"
+    if provider == "kira":
+        return "KIRA"
+    if provider == "gemini":
+        return "GEMINI"
+    if provider == "openrouter":
+        return "OPENROUTER"
     if provider in {"nine_router", "9_router", "9router"}:
         return "NINE_ROUTER"
     raise LLMProviderError(f"Unsupported LLM_PROVIDER: {provider}")
