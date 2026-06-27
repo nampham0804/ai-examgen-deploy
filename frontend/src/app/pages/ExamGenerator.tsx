@@ -8,6 +8,7 @@ import { blueprintApi } from '../../api/blueprints';
 import { Blueprint } from '../../types/exam';
 import { getCourses } from '../../api/courses';
 import { Course } from '../../types/course';
+import { getLearningOutcomes } from '../../api/learningOutcomes';
 import { Alert, AlertTitle, AlertDescription } from '../components/ui/alert';
 import ExamPreview from './ExamPreview';
 
@@ -111,6 +112,7 @@ export default function ExamGenerator() {
   });
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseSearchTerm, setCourseSearchTerm] = useState('');
+  const [totalCourseLOs, setTotalCourseLOs] = useState<number>(0);
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -139,18 +141,33 @@ export default function ExamGenerator() {
     const fetchBlueprints = async () => {
       try {
         const res = await blueprintApi.getBlueprints(examConfig.courseId);
-        // Only validated blueprints can be used
-        const validBlueprints = res.data.filter(b => b.status === 'validated');
-        setBlueprints(validBlueprints);
+        // Allow all blueprints to be selected as per requirements
+        setBlueprints(res.data);
         // Do not auto-select blueprint so user has to choose
       } catch (e) {
         console.error('Failed to fetch blueprints', e);
       }
     };
-    fetchBlueprints();
+    if (examConfig.courseId) {
+      fetchBlueprints();
+    }
   }, [examConfig.courseId]);
 
-  // Compute difficulty distribution from selected blueprint
+  useEffect(() => {
+    const fetchLOs = async () => {
+      try {
+        const outcomes = await getLearningOutcomes(examConfig.courseId);
+        setTotalCourseLOs(outcomes.length);
+      } catch (e) {
+        console.error('Failed to fetch learning outcomes', e);
+      }
+    };
+    if (examConfig.courseId) {
+      fetchLOs();
+    }
+  }, [examConfig.courseId]);
+
+  // Derived state for difficulty distribution from selected blueprint
   const selectedBlueprint = useMemo(() => {
     if (!examConfig.blueprintId) return null;
     return blueprints.find(b => b.id === examConfig.blueprintId) || null;
@@ -179,9 +196,17 @@ export default function ExamGenerator() {
 
   const qualityInfo = useMemo(() => {
     if (!selectedBlueprint) return null;
-    const totalQ = selectedBlueprint.total_questions;
+    
+    // 1. Tổng số câu: Lấy theo tổng số lượng câu hỏi được quy định trong Blueprint
+    const totalQ = selectedBlueprint.total_questions || 0;
+    
+    // 2. Số LO phủ: Tổng số lượng chuẩn đầu ra có trong Blueprint đó
     const loCount = new Set(selectedBlueprint.items.map(i => i.learning_outcome_id)).size;
-    const typeCount = new Set(selectedBlueprint.items.map(i => i.question_type)).size;
+    
+    // 3. Loại câu hỏi: Hiển thị danh sách các định dạng câu hỏi
+    const typeSet = new Set(selectedBlueprint.items.map(i => i.question_type));
+    const typeMap: Record<string, string> = { 'mcq': 'MCQ', 'essay': 'Essay' };
+    const displayTypes = Array.from(typeSet).map(t => typeMap[t] || t).join(' + ') || 'N/A';
 
     let easy = 0, medium = 0, hard = 0;
     selectedBlueprint.items.forEach(item => {
@@ -190,19 +215,66 @@ export default function ExamGenerator() {
       hard += item.hard_count;
     });
 
-    // Balance score: check distribution evenness
-    const diffLevels = [easy, medium, hard].filter(v => v > 0).length;
-    const balanceScore = diffLevels >= 3 ? 'A+' : diffLevels === 2 ? 'B+' : 'C';
+    const actualTotalItems = easy + medium + hard;
+
+    // 4. Blueprint Alignment: Thực hiện tính toán so khớp ma trận
+    let blueprintAlignment = 0;
+    if (totalQ > 0) {
+      const diff = Math.abs(totalQ - actualTotalItems);
+      blueprintAlignment = Math.max(0, 100 - Math.round((diff / totalQ) * 100));
+    } else if (actualTotalItems === 0 && totalQ === 0) {
+      blueprintAlignment = 100;
+    }
+
+    // 4. Balance Score: Tính toán độ cân bằng phân bổ LO (sử dụng độ lệch chuẩn/CV)
+    let balanceScore = 'N/A';
+    
+    // Gộp tổng số lượng câu hỏi cho từng learning_outcome_id
+    const loDistribution = new Map<number, number>();
+    selectedBlueprint.items.forEach(item => {
+      const sum = item.easy_count + item.medium_count + item.hard_count;
+      loDistribution.set(
+        item.learning_outcome_id, 
+        (loDistribution.get(item.learning_outcome_id) || 0) + sum
+      );
+    });
+
+    const counts = Array.from(loDistribution.values());
+    
+    if (loCount < totalCourseLOs && totalCourseLOs > 0) {
+      balanceScore = 'Mất cân bằng'; // Thiếu LO so với môn học
+    } else if (counts.length > 0) {
+      if (counts.length === 1) {
+        balanceScore = 'Rất cân bằng'; // Chỉ có 1 LO
+      } else {
+        const mean = counts.reduce((a, b) => a + b, 0) / counts.length;
+        const variance = counts.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / counts.length;
+        const sd = Math.sqrt(variance);
+        const cv = mean > 0 ? sd / mean : 0;
+        
+        if (cv <= 0.2) {
+          balanceScore = 'Rất cân bằng';
+        } else if (cv <= 0.5) {
+          balanceScore = 'Cân bằng';
+        } else {
+          balanceScore = 'Mất cân bằng';
+        }
+      }
+    }
+
+    // Tính phần trăm loCoverage dựa trên totalCourseLOs
+    const loCoverage = totalCourseLOs > 0 ? Math.min(100, Math.round((loCount / totalCourseLOs) * 100)) : (loCount > 0 ? 100 : 0);
 
     return {
       totalQuestions: totalQ,
       loCount,
-      typeCount,
-      loCoverage: selectedBlueprint.status === 'validated' ? 100 : 0,
-      blueprintAlignment: selectedBlueprint.status === 'validated' ? 100 : 0,
+      totalCourseLOs,
+      displayTypes,
+      loCoverage,
+      blueprintAlignment,
       balanceScore,
     };
-  }, [selectedBlueprint]);
+  }, [selectedBlueprint, totalCourseLOs]);
 
   const handleBlueprintChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setExamConfig({ ...examConfig, blueprintId: parseInt(e.target.value) });
@@ -218,8 +290,16 @@ export default function ExamGenerator() {
     }
 
     setIsLoading(true);
-    setStep(3); // Step 3: Generating
     try {
+      // Check eligibility first
+      const eligibility = await blueprintApi.checkEligibility(examConfig.blueprintId);
+      if (!eligibility.data.is_valid) {
+        setAlertInfo({ type: 'error', message: "Không đủ số lượng câu hỏi trong cơ sở dữ liệu theo cấu trúc Blueprint, không thể tạo đề thi." });
+        setIsLoading(false);
+        return;
+      }
+
+      setStep(3); // Step 3: Generating
       // Create draft exam
       const draftRes = await examApi.createExam({
         course_id: examConfig.courseId,
@@ -270,7 +350,7 @@ export default function ExamGenerator() {
               <div className="flex flex-col items-center flex-1">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${step >= s
                   ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:bg-gray-400'
                   }`}>
                   {step > s ? <CheckCircle className="w-6 h-6" /> : s}
                 </div>
@@ -342,9 +422,9 @@ export default function ExamGenerator() {
                   onChange={handleBlueprintChange}
                   className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="" disabled>-- Chọn Ma trận (Đã kiểm duyệt) --</option>
+                  <option value="" disabled>-- Chọn Ma trận --</option>
                   {blueprints.map(b => (
-                    <option key={b.id} value={b.id}>{b.title} ({b.total_questions} câu)</option>
+                    <option key={b.id} value={b.id}>{b.title} ({b.total_questions} câu) {b.status !== 'validated' ? '(Chưa đủ ĐK)' : ''}</option>
                   ))}
                 </select>
               </div>
@@ -426,11 +506,11 @@ export default function ExamGenerator() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Số LO phủ</span>
-                  <span className="font-semibold">{qualityInfo.loCount} LO</span>
+                  <span className="font-semibold">{qualityInfo.loCount}/{qualityInfo.totalCourseLOs} LO</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Loại câu hỏi</span>
-                  <span className="font-semibold">{qualityInfo.typeCount === 2 ? 'MCQ + Essay' : qualityInfo.typeCount === 1 ? 'MCQ' : 'N/A'}</span>
+                  <span className="font-semibold">{qualityInfo.displayTypes}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Blueprint Alignment</span>
@@ -448,7 +528,7 @@ export default function ExamGenerator() {
         {/* Right Panel - Exam Preview */}
         <div className="lg:col-span-2">
           {step === 4 && generatedExamId ? (
-            <ExamPreview examId={generatedExamId} onSaved={() => setStep(1)} />
+            <ExamPreview examId={generatedExamId} onSaved={() => setStep(1)} hideExport={true} />
           ) : (
             <div className="bg-slate-50 dark:bg-gray-800/50 rounded-xl shadow-inner border border-dashed border-slate-300 dark:border-gray-700 p-12 flex flex-col items-center justify-center text-center h-full min-h-[400px]">
               <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-4">

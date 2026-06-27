@@ -190,5 +190,14 @@ export const blueprintApi = {
     });
     if (!response.ok) throw new Error('Failed to validate blueprint');
     return response.json();
+  },
+
+  async checkEligibility(id: number): Promise<ValidationResultResponse> {
+    if (USE_MOCK) {
+      return this.validateBlueprint(id); // For mock, it's roughly the same
+    }
+    const response = await fetch(`${API_ROOT}/blueprints/${id}/eligibility`);
+    if (!response.ok) throw new Error('Failed to check blueprint eligibility');
+    return response.json();
   }
 };

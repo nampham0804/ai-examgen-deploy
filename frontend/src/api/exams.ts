@@ -71,6 +71,26 @@ export const examApi = {
     return response.json();
   },
 
+  async updateExam(id: number, payload: { title?: string; duration_minutes?: number; status?: string }): Promise<ExamResponse> {
+    if (USE_MOCK) {
+      return new Promise((resolve, reject) => setTimeout(() => {
+        const index = mockExams.findIndex(e => e.id === id);
+        if (index === -1) return reject(new Error("Exam not found"));
+        if (payload.title) mockExams[index].title = payload.title;
+        if (payload.duration_minutes !== undefined) mockExams[index].duration_minutes = payload.duration_minutes;
+        if (payload.status) mockExams[index].status = payload.status as any;
+        resolve({ data: mockExams[index], message: "Mock exam updated successfully" });
+      }, 500));
+    }
+    const response = await fetch(`${API_ROOT}/exams/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Failed to update exam');
+    return response.json();
+  },
+
   async generateExam(id: number): Promise<ExamResponse> {
     if (USE_MOCK) {
       return new Promise((resolve, reject) => setTimeout(async () => {
@@ -147,6 +167,7 @@ export const examApi = {
             course_name: MOCK_EXAM_PREVIEW.course_name,
             duration_minutes: exam.duration_minutes,
             total_questions: total,
+            status: exam.status,
             questions: questions
           },
           message: "Mock exam preview loaded"
@@ -195,46 +216,14 @@ export const examApi = {
     return result; // We will adapt frontend to refetch if needed
   },
 
-  async exportToGift(id: number): Promise<Blob> {
+  async exportExam(id: number, format: string = 'gift'): Promise<Blob> {
     if (USE_MOCK) {
-      return new Promise((resolve, reject) => setTimeout(() => {
-        const exam = mockExams.find(e => e.id === id);
-        if (!exam && id !== MOCK_EXAM_PREVIEW.id) return reject(new Error("Exam not found"));
-
-        // For mock, just generate from MOCK_EXAM_PREVIEW or the exam's questions
-        const questions = id === MOCK_EXAM_PREVIEW.id ? MOCK_EXAM_PREVIEW.questions : exam?.questions || MOCK_EXAM_PREVIEW.questions;
-        
-        let giftContent = `// Exam ${exam?.title || MOCK_EXAM_PREVIEW.title}\n\n`;
-
-        // Format each question to GIFT
-        // MOCK_EXAM_PREVIEW.questions has the full question objects
-        const fullQuestions = MOCK_EXAM_PREVIEW.questions; 
-
-        fullQuestions.forEach((q, index) => {
-          const safeText = q.text.replace(/([{}~=#\:])/g, "\\$1");
-          if (q.type === 'Multiple Choice' && q.options) {
-            giftContent += `::Q${index + 1}::${safeText} {\n`;
-            q.options.forEach(opt => {
-              const safeOpt = opt.replace(/([{}~=#\:])/g, "\\$1");
-              if (opt === q.correct_answer) {
-                giftContent += `=${safeOpt}\n`;
-              } else {
-                giftContent += `~${safeOpt}\n`;
-              }
-            });
-            giftContent += `}\n\n`;
-          } else if (q.type === 'Essay') {
-            giftContent += `::Q${index + 1}::${safeText} {}\n\n`;
-          }
-        });
-
-        const blob = new Blob([giftContent], { type: 'text/plain;charset=utf-8' });
-        resolve(blob);
+      return new Promise(resolve => setTimeout(() => {
+        resolve(new Blob(['Mock file content'], { type: 'text/plain' }));
       }, 800));
     }
-    
-    const response = await fetch(`${API_ROOT}/exports/gift?exam_id=${id}`);
-    if (!response.ok) throw new Error('Failed to export to GIFT');
+    const response = await fetch(`${API_ROOT}/exports/${format}?exam_id=${id}`);
+    if (!response.ok) throw new Error(`Failed to export exam to ${format}`);
     return response.blob();
   },
 
@@ -263,6 +252,21 @@ export const examApi = {
     }
     const response = await fetch(`${API_ROOT}/exams/${id}`, { method: 'DELETE' });
     if (!response.ok) throw new Error('Failed to delete exam');
+    return response.json();
+  },
+
+  async reorderExam(id: number, items: { id: number, order_index: number }[]): Promise<any> {
+    if (USE_MOCK) {
+      return new Promise(resolve => setTimeout(() => {
+        resolve({ message: "Mock exam reordered successfully" });
+      }, 500));
+    }
+    const response = await fetch(`${API_ROOT}/exams/${id}/reorder`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    });
+    if (!response.ok) throw new Error('Failed to reorder exam');
     return response.json();
   }
 };

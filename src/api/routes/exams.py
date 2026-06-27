@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_db
-from src.schemas.exam_schema import ExamCreate, ExamListResponse, ExamPreviewResponse, ExamResponse
+from src.schemas.exam_schema import ExamCreate, ExamListResponse, ExamPreviewResponse, ExamResponse, ExamReorderRequest, ExamUpdate
 from src.services.exam_service import ExamService
 
 router = APIRouter(prefix="/exams", tags=["exams"])
@@ -20,8 +20,7 @@ def get_exams(course_id: int | None = None, db: Session = Depends(get_db)):
     if course_id is not None:
         exams = service.get_exams_by_course(course_id)
     else:
-        # In a real app, you might want to paginate or return all
-        exams = []
+        exams = service.get_all_exams()
     return {"data": exams, "message": "Exams retrieved successfully"}
 
 @router.get("/{exam_id}", response_model=ExamResponse)
@@ -29,6 +28,12 @@ def get_exam(exam_id: int, db: Session = Depends(get_db)):
     service = ExamService(db)
     exam = service.get_exam_by_id(exam_id)
     return {"data": exam, "message": "Exam retrieved successfully"}
+
+@router.put("/{exam_id}", response_model=ExamResponse)
+def update_exam(exam_id: int, exam_in: ExamUpdate, db: Session = Depends(get_db)):
+    service = ExamService(db)
+    exam = service.update_exam(exam_id, exam_in)
+    return {"data": exam, "message": "Exam updated successfully"}
 
 @router.post("/{exam_id}/generate", response_model=ExamResponse)
 def generate_exam(exam_id: int, db: Session = Depends(get_db)):
@@ -47,3 +52,16 @@ def swap_exam_question(exam_id: int, question_id: int, db: Session = Depends(get
     service = ExamService(db)
     result = service.swap_exam_question(exam_id, question_id)
     return {"data": result, "message": "Question swapped successfully"}
+
+@router.put("/{exam_id}/reorder")
+def reorder_exam(exam_id: int, request: ExamReorderRequest, db: Session = Depends(get_db)):
+    service = ExamService(db)
+    items = [item.dict() for item in request.items]
+    result = service.reorder_exam(exam_id, items)
+    return {"data": result, "message": "Exam reordered successfully"}
+
+@router.delete("/{exam_id}")
+def delete_exam(exam_id: int, db: Session = Depends(get_db)):
+    service = ExamService(db)
+    result = service.delete_exam(exam_id)
+    return result

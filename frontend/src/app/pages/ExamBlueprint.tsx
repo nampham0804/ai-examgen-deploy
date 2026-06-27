@@ -142,6 +142,7 @@ export default function ExamBlueprint() {
   const [validationResult, setValidationResult] = useState<ValidationResultData | null>(null);
   const [showUnbalancedWarning, setShowUnbalancedWarning] = useState(false);
   const [showMissingWarning, setShowMissingWarning] = useState(false);
+  const [missingDetails, setMissingDetails] = useState<string[]>([]);
 
   const navigate = useNavigate();
 
@@ -384,9 +385,24 @@ export default function ExamBlueprint() {
     if (selectedCourse === null) return;
     try {
       setIsSaving(true);
-      const res = await getQuestions({ course_id: selectedCourse });
-      const availableQuestions = res.items;
+      
+      let allQuestions: any[] = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const res = await getQuestions({ course_id: selectedCourse, status: 'approved', page, page_size: 100 });
+        allQuestions = [...allQuestions, ...res.items];
+        if (allQuestions.length >= res.total || res.items.length === 0) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      }
+      
+      const availableQuestions = allQuestions;
       let hasMissing = false;
+      const details: string[] = [];
 
       matrix.forEach(row => {
         row.items.forEach(item => {
@@ -396,6 +412,10 @@ export default function ExamBlueprint() {
             const availMed = relevantQ.filter(q => q.difficulty === 'medium').length;
             const availHard = relevantQ.filter(q => q.difficulty === 'hard').length;
 
+            if (item.easy > availEasy) details.push(`CLO ${row.loCode} (${item.type}): Thiếu ${item.easy - availEasy} câu Dễ`);
+            if (item.medium > availMed) details.push(`CLO ${row.loCode} (${item.type}): Thiếu ${item.medium - availMed} câu Trung bình`);
+            if (item.hard > availHard) details.push(`CLO ${row.loCode} (${item.type}): Thiếu ${item.hard - availHard} câu Khó`);
+
             if (item.easy > availEasy || item.medium > availMed || item.hard > availHard) {
               hasMissing = true;
             }
@@ -403,6 +423,7 @@ export default function ExamBlueprint() {
         });
       });
 
+      setMissingDetails(details);
       setIsSaving(false);
       if (hasMissing) {
         setShowMissingWarning(true);
@@ -782,10 +803,20 @@ export default function ExamBlueprint() {
             <p className="mb-4">
               Học phần này không đáp ứng đủ số câu hỏi theo Blueprint bạn vừa thiết lập. Blueprint sẽ được lưu dưới dạng <strong>Bản nháp (Draft)</strong> và không thể dùng để tạo đề thi cho đến khi bạn bổ sung đủ câu hỏi.
             </p>
+            {missingDetails.length > 0 && (
+              <div className="mb-4 bg-red-50 dark:bg-red-900/20 p-3 rounded-md border border-red-100 dark:border-red-800">
+                <p className="font-semibold text-red-800 dark:text-red-400 mb-2">Chi tiết số câu còn thiếu:</p>
+                <ul className="list-disc pl-5 space-y-1 text-red-700 dark:text-red-300">
+                  {missingDetails.map((detail, idx) => (
+                    <li key={idx}>{detail}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <p className="font-medium text-red-600 dark:text-red-400">Bạn muốn tiếp tục lưu Blueprint hay chuyển sang Ngân hàng để tạo thêm câu hỏi?</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => navigate('/question-bank')}>Chuyển sang gen câu hỏi</Button>
+            <Button variant="outline" onClick={() => navigate('/ai-generation')}>Chuyển sang gen câu hỏi</Button>
             <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={executeSave}>Vẫn lưu Blueprint</Button>
           </DialogFooter>
         </DialogContent>

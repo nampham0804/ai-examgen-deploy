@@ -90,7 +90,7 @@ export interface Exam {
   title: string;
   duration_minutes: number;
   total_questions: number;
-  status: 'draft' | 'generated' | 'exported';
+  status: string;
   created_at: string;
   updated_at: string;
   questions: ExamQuestion[];
@@ -124,6 +124,7 @@ export interface ExamPreviewQuestion {
   correct_answer?: string;
   sample_answer?: string;
   rubric?: string;
+  explanation?: string;
   difficulty: string;
   learning_outcome_code: string;
   points?: number;
@@ -135,6 +136,7 @@ export interface ExamPreviewData {
   title: string;
   duration_minutes: number;
   total_questions: number;
+  status: string;
   questions: ExamPreviewQuestion[];
 }
 

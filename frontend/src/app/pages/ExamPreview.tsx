@@ -3,11 +3,11 @@ import { useParams, useNavigate } from 'react-router';
 import { Button } from '../components/ui/button';
 import { examApi } from '../../api/exams';
 import { ExamPreviewData, ExamPreviewQuestion } from '../../types/exam';
-import { RefreshCw, Download, Loader2, Edit, CheckCircle, AlertCircle, FileDown } from 'lucide-react';
+import { RefreshCw, Download, Loader2, Edit, CheckCircle, AlertCircle, FileDown, ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '../components/ui/dialog';
 import { Alert, AlertTitle, AlertDescription } from '../components/ui/alert';
 
-export default function ExamPreview({ examId, onSaved }: { examId?: number; onSaved?: () => void }) {
+export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: number; onSaved?: () => void; hideExport?: boolean }) {
   const params = useParams();
   const idStr = params.id;
   const id = examId || (idStr ? parseInt(idStr) : null);
@@ -17,10 +17,16 @@ export default function ExamPreview({ examId, onSaved }: { examId?: number; onSa
   const [swappingId, setSwappingId] = useState<number | null>(null);
   const [actionAlert, setActionAlert] = useState<{type: 'success' | 'error', message: string} | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [selectedFormat, setSelectedFormat] = useState('gift');
   
   // Edit State
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ title: '', duration: 60 });
+
+  // Reorder State
+  const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
+  const [isReordering, setIsReordering] = useState(false);
 
   const fetchPreview = async () => {
     if (!id) return;
@@ -57,6 +63,54 @@ export default function ExamPreview({ examId, onSaved }: { examId?: number; onSa
     }
   };
 
+  const handleReorder = async (fromIndex: number, toIndex: number) => {
+    if (!data || !id) return;
+    if (fromIndex < 0 || toIndex < 0 || fromIndex >= data.questions.length || toIndex >= data.questions.length) return;
+    if (fromIndex === toIndex) return;
+
+    // Create new array
+    const newQuestions = [...data.questions];
+    const [movedItem] = newQuestions.splice(fromIndex, 1);
+    newQuestions.splice(toIndex, 0, movedItem);
+
+    // Update order_index for all
+    const updatedQuestions = newQuestions.map((q, idx) => ({ ...q, order_index: idx + 1 }));
+
+    // Optimistic UI update
+    setData({ ...data, questions: updatedQuestions });
+    setIsReordering(true);
+
+    try {
+      const items = updatedQuestions.map(q => ({ id: q.id, order_index: q.order_index }));
+      await examApi.reorderExam(id, items);
+    } catch (e: any) {
+      console.error(e);
+      alert(e.message || "Failed to reorder questions.");
+      // Rollback on fail
+      await fetchPreview();
+    } finally {
+      setIsReordering(false);
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedItemIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedItemIndex !== null && draggedItemIndex !== index) {
+      handleReorder(draggedItemIndex, index);
+    }
+    setDraggedItemIndex(null);
+  };
+
   const handleSaveDetails = () => {
     if (!data) return;
     setData({ ...data, title: editForm.title, duration_minutes: editForm.duration });
@@ -64,37 +118,68 @@ export default function ExamPreview({ examId, onSaved }: { examId?: number; onSa
     // In a real app, this would call an API to update the exam metadata
   };
 
-  const handleExportGift = async () => {
+  const handleExportSubmit = async () => {
     if (!id) return;
+    setExportModalOpen(false);
     setActionAlert(null);
     setIsExporting(true);
     try {
-      const blob = await examApi.exportToGift(id);
+      const blob = await examApi.exportExam(id, selectedFormat);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `exam_${id}.gift`;
+      a.download = `exam_${id}.${selectedFormat}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      setActionAlert({ type: 'success', message: 'Xuất file GIFT thành công! File đang được tải xuống.' });
+      setActionAlert({ type: 'success', message: `Xuất file ${selectedFormat.toUpperCase()} thành công! File đang được tải xuống.` });
     } catch (e) {
       console.error(e);
-      setActionAlert({ type: 'error', message: 'Xuất file GIFT thất bại!' });
+      setActionAlert({ type: 'error', message: `Xuất file ${selectedFormat.toUpperCase()} thất bại!` });
     } finally {
       setIsExporting(false);
     }
   };
 
-  const handleConfirmSave = () => {
-    setActionAlert({ type: 'success', message: 'Đã xác nhận và lưu đề thi thành công! Giao diện sẽ được làm mới...' });
-    // After 2 seconds, call onSaved to reset parent or navigate
-    setTimeout(() => {
-      if (onSaved) {
-        onSaved();
-      }
-    }, 2000);
+  const handleConfirmSave = async () => {
+    if (!id || !data) return;
+    try {
+      await examApi.updateExam(id, { 
+        title: data.title,
+        duration_minutes: data.duration_minutes,
+        status: 'approved' 
+      });
+      setData({ ...data, status: 'approved' });
+      setActionAlert({ type: 'success', message: 'Đã xác nhận và lưu đề thi thành công! Giao diện sẽ được làm mới...' });
+      // After 2 seconds, call onSaved to reset parent or navigate
+      setTimeout(() => {
+        if (onSaved) {
+          onSaved();
+        } else {
+          navigate('/exam-list');
+        }
+      }, 2000);
+    } catch (e) {
+      console.error(e);
+      setActionAlert({ type: 'error', message: 'Có lỗi xảy ra khi lưu đề thi.' });
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!id || !data) return;
+    try {
+      await examApi.updateExam(id, { 
+        title: data.title, 
+        duration_minutes: data.duration_minutes, 
+        status: 'draft' 
+      });
+      setData({ ...data, status: 'draft' });
+      setActionAlert({ type: 'success', message: 'Đã lưu bản nháp thành công!' });
+    } catch (e) {
+      console.error(e);
+      setActionAlert({ type: 'error', message: 'Có lỗi xảy ra khi lưu bản nháp.' });
+    }
   };
 
   if (loading && !data) {
@@ -154,12 +239,6 @@ export default function ExamPreview({ examId, onSaved }: { examId?: number; onSa
           <p className="text-gray-500 mt-1">Course: {data.course_name} • Duration: {data.duration_minutes} mins • {data.total_questions} Questions</p>
         </div>
         <div className="flex items-center gap-2">
-          {id && (
-            <Button variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => navigate(`/exam/${id}/edit`)}>
-              <Edit className="w-4 h-4 mr-2" />
-              Advanced Edit
-            </Button>
-          )}
           {!examId && (
             <Button variant="outline" onClick={() => navigate(-1)}>
               Back
@@ -168,13 +247,23 @@ export default function ExamPreview({ examId, onSaved }: { examId?: number; onSa
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden ${isReordering ? 'opacity-70 pointer-events-none' : ''}`}>
         <div className="p-6 space-y-8">
           {data.questions.map((q, index) => (
-            <div key={q.id} className="p-5 border rounded-lg bg-slate-50 relative group transition-all hover:border-blue-300 hover:shadow-md">
+            <div 
+              key={q.id} 
+              className={`p-5 border rounded-lg bg-slate-50 relative group transition-all hover:border-blue-300 hover:shadow-md ${draggedItemIndex === index ? 'opacity-50 border-dashed border-blue-500' : ''}`}
+              draggable
+              onDragStart={(e) => handleDragStart(e, index)}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDrop={(e) => handleDrop(e, index)}
+            >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
-                  <h3 className="font-semibold text-lg text-slate-800">Question {index + 1}</h3>
+                  <div className="cursor-grab hover:bg-slate-200 p-1 rounded active:cursor-grabbing text-slate-400">
+                    <GripVertical className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-semibold text-lg text-slate-800">Câu {index + 1}</h3>
                   <span className={`px-2 py-0.5 rounded text-xs font-medium uppercase ${
                     q.difficulty === 'easy' ? 'bg-green-100 text-green-700' :
                     q.difficulty === 'medium' ? 'bg-amber-100 text-amber-700' :
@@ -190,24 +279,46 @@ export default function ExamPreview({ examId, onSaved }: { examId?: number; onSa
                   </span>
                 </div>
                 
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="text-slate-600 hover:text-blue-600 flex items-center gap-2"
-                  onClick={() => handleSwap(q.question_id)}
-                  disabled={swappingId === q.question_id}
-                >
-                  {swappingId === q.question_id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                  Đổi câu hỏi
-                </Button>
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-col mr-2">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6 text-slate-400 hover:text-blue-600 disabled:opacity-30"
+                      disabled={index === 0}
+                      onClick={() => handleReorder(index, index - 1)}
+                    >
+                      <ArrowUp className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6 text-slate-400 hover:text-blue-600 disabled:opacity-30"
+                      disabled={index === data.questions.length - 1}
+                      onClick={() => handleReorder(index, index + 1)}
+                    >
+                      <ArrowDown className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-slate-600 hover:text-blue-600 flex items-center gap-2"
+                    onClick={() => handleSwap(q.question_id)}
+                    disabled={swappingId === q.question_id}
+                  >
+                    {swappingId === q.question_id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                    Đổi câu hỏi
+                  </Button>
+                </div>
               </div>
               
-              <div className="text-slate-800 font-medium mb-4 whitespace-pre-wrap">
+              <div className="text-slate-800 font-medium mb-4 whitespace-pre-wrap ml-9">
                 {q.text}
               </div>
 
               {(q.type === 'Multiple Choice' || q.type === 'mcq') && q.options && (
-                <div className="space-y-2 mt-4 ml-2">
+                <div className="space-y-2 mt-4 ml-11">
                   {q.options.map((opt, i) => {
                     const isCorrect = q.correct_answer === opt;
                     return (
@@ -221,11 +332,28 @@ export default function ExamPreview({ examId, onSaved }: { examId?: number; onSa
                       </div>
                     )
                   })}
+                  
+                  {(q.correct_answer || q.explanation) && (
+                    <div className="mt-4 p-4 bg-blue-50 border border-blue-100 rounded-md space-y-3">
+                      {q.correct_answer && (
+                        <div>
+                          <div className="text-xs font-semibold text-blue-700 mb-1 uppercase tracking-wider">Đáp án đúng</div>
+                          <div className="text-slate-800 text-sm font-medium">{q.correct_answer}</div>
+                        </div>
+                      )}
+                      {q.explanation && (
+                        <div>
+                          <div className="text-xs font-semibold text-blue-700 mb-1 uppercase tracking-wider">Giải thích</div>
+                          <div className="text-slate-700 text-sm whitespace-pre-wrap">{q.explanation}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
               {(q.type === 'Essay' || q.type === 'essay') && (
-                <div className="mt-4 space-y-4">
+                <div className="mt-4 space-y-4 ml-9">
                   <div className="p-4 bg-white border rounded-md">
                     <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Đáp án mẫu</div>
                     <div className="text-slate-700 text-sm whitespace-pre-wrap">{q.sample_answer || 'Chưa cập nhật'}</div>
@@ -234,6 +362,12 @@ export default function ExamPreview({ examId, onSaved }: { examId?: number; onSa
                     <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Rubric chấm điểm</div>
                     <div className="text-slate-700 text-sm whitespace-pre-wrap">{q.rubric || 'Chưa cập nhật'}</div>
                   </div>
+                  {q.explanation && (
+                    <div className="p-4 bg-blue-50 border border-blue-100 rounded-md">
+                      <div className="text-xs font-semibold text-blue-700 mb-1 uppercase tracking-wider">Giải thích</div>
+                      <div className="text-slate-700 text-sm whitespace-pre-wrap">{q.explanation}</div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -249,9 +383,14 @@ export default function ExamPreview({ examId, onSaved }: { examId?: number; onSa
             </Alert>
           )}
           <div className="flex justify-end gap-3">
-            <Button variant="outline" className="flex items-center gap-2" onClick={handleExportGift} disabled={isExporting}>
-              {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Export to GIFT
+            {!hideExport && (
+              <Button variant="outline" className="flex items-center gap-2" onClick={() => setExportModalOpen(true)} disabled={isExporting || data.status !== 'approved'}>
+                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Export File
+              </Button>
+            )}
+            <Button variant="outline" className="flex items-center gap-2 text-slate-700" onClick={handleSaveDraft}>
+              Lưu bản nháp
             </Button>
             <Button className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2" onClick={handleConfirmSave}>
               <CheckCircle className="w-4 h-4" /> Confirm & Save
@@ -259,6 +398,43 @@ export default function ExamPreview({ examId, onSaved }: { examId?: number; onSa
           </div>
         </div>
       </div>
+
+      <Dialog open={exportModalOpen} onOpenChange={setExportModalOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Chọn định dạng xuất file</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-4">
+            {[
+              { id: 'gift', label: 'GIFT Format (.gift)' },
+              { id: 'xml', label: 'Moodle XML (.xml)' },
+              { id: 'doc', label: 'Microsoft Word (.doc)' },
+              { id: 'txt', label: 'Text Format (.txt)' }
+            ].map(fmt => (
+              <label key={fmt.id} className={`flex items-center space-x-3 p-3 border rounded-md cursor-pointer transition-colors ${selectedFormat === fmt.id ? 'border-blue-500 bg-blue-50' : 'hover:bg-slate-50 border-slate-200'}`}>
+                <input 
+                  type="radio" 
+                  name="export-format" 
+                  value={fmt.id} 
+                  checked={selectedFormat === fmt.id} 
+                  onChange={(e) => setSelectedFormat(e.target.value)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" 
+                />
+                <span className={`font-medium ${selectedFormat === fmt.id ? 'text-blue-700' : 'text-slate-700'}`}>
+                  {fmt.label}
+                </span>
+              </label>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExportModalOpen(false)}>Hủy</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleExportSubmit}>
+              <Download className="w-4 h-4 mr-2" />
+              Xuất File
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
