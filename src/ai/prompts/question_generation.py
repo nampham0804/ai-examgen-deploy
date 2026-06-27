@@ -80,12 +80,42 @@ def _build_user_prompt(
     }
     schema = _mcq_schema() if question_type == "mcq" else _essay_schema()
     return (
-        "Use only the source_chunks in this request. Do not use outside knowledge. "
-        "If the chunks do not contain enough evidence, generate fewer questions rather than inventing facts. "
+        "Use only the source_chunks in this request. "
+        "Do not use outside knowledge. "
+
+        "If the chunks do not contain enough evidence, generate fewer "
+        "questions rather than inventing facts. "
+
         "Avoid duplicate or near-duplicate questions. "
-        "Do not repeat or paraphrase existing_questions_to_avoid. "
-        "Each question should assess a different concept or aspect from the available chunks. "
-        "Set source_chunk_ids to the chunk_id values that support each question. "
+
+        "Questions must be natural assessment questions and fully "
+        "self-contained. "
+
+        "Never expose retrieval metadata in any generated content. "
+        "Do not mention chunk numbers, chunk identifiers, source ids, "
+        "file names, document names, section paths, retrieval context, "
+        "or phrases referring to the provided material. "
+
+        "Do not use phrases such as "
+        "'according to chunk', "
+        "'based on the chunk', "
+        "'according to the document', "
+        "'based on the provided text', "
+        "'according to the passage', "
+        "'from the source text'. "
+
+        "The language of all generated fields must match the dominant "
+        "language detected from source_chunks. "
+        "Do not translate content into another language. "
+        "Do not mix languages unless required by the source itself. "
+
+        "Explanations must briefly justify why the answer is correct. "
+        "Explanations must not mention documents, chunks, passages, "
+        "retrieval context, or source material. "
+
+        "Set source_chunk_ids to the chunk_id values that support each "
+        "question. "
+
         "Return JSON only with this shape:\n"
         f"{schema}\n\n"
         "Generation context:\n"
