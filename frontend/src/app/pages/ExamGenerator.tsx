@@ -53,7 +53,7 @@ function SearchableCourseSelect({
         onClick={() => !disabled && setIsOpen(!isOpen)}
       >
         <div className="truncate text-gray-900 dark:text-white">
-          {selectedCourse ? `${selectedCourse.code} - ${selectedCourse.name}` : 'Chọn môn học...'}
+          {selectedCourse ? `${selectedCourse.code} - ${selectedCourse.name}` : t('examGen.selectCourse')}
         </div>
         <ChevronDown className="w-4 h-4 text-gray-500" />
       </div>
@@ -65,7 +65,7 @@ function SearchableCourseSelect({
             <input
               type="text"
               autoFocus
-              placeholder="Tìm môn học..."
+              placeholder={t("examGen.searchCourse")}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full bg-transparent border-none focus:outline-none text-sm text-gray-900 dark:text-white placeholder-gray-500"
@@ -87,7 +87,7 @@ function SearchableCourseSelect({
                 </div>
               ))
             ) : (
-              <div className="p-3 text-sm text-gray-500 text-center">Không tìm thấy môn học</div>
+              <div className="p-3 text-sm text-gray-500 text-center">{t('examGen.noCourseFound')}</div>
             )}
           </div>
         </div>
@@ -242,10 +242,10 @@ export default function ExamGenerator() {
     const counts = Array.from(loDistribution.values());
     
     if (loCount < totalCourseLOs && totalCourseLOs > 0) {
-      balanceScore = 'Mất cân bằng'; // Thiếu LO so với môn học
+      balanceScore = t('examGen.unbalancedLO'); // Thiếu LO so với môn học
     } else if (counts.length > 0) {
       if (counts.length === 1) {
-        balanceScore = 'Rất cân bằng'; // Chỉ có 1 LO
+        balanceScore = t('examGen.veryBalancedLO'); // Chỉ có 1 LO
       } else {
         const mean = counts.reduce((a, b) => a + b, 0) / counts.length;
         const variance = counts.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / counts.length;
@@ -253,11 +253,11 @@ export default function ExamGenerator() {
         const cv = mean > 0 ? sd / mean : 0;
         
         if (cv <= 0.2) {
-          balanceScore = 'Rất cân bằng';
+          balanceScore = t('examGen.veryBalancedLO');
         } else if (cv <= 0.5) {
-          balanceScore = 'Cân bằng';
+          balanceScore = t('examGen.balancedLO');
         } else {
-          balanceScore = 'Mất cân bằng';
+          balanceScore = t('examGen.unbalancedLO');
         }
       }
     }
@@ -285,7 +285,7 @@ export default function ExamGenerator() {
   const handleGenerate = async () => {
     setAlertInfo(null);
     if (!examConfig.blueprintId) {
-      setAlertInfo({ type: 'error', message: "Vui lòng chọn Blueprint (Ma trận đề thi) hợp lệ đã được kiểm duyệt." });
+      setAlertInfo({ type: 'error', message: t('examGen.validationErrorSelect') });
       return;
     }
 
@@ -294,7 +294,7 @@ export default function ExamGenerator() {
       // Check eligibility first
       const eligibility = await blueprintApi.checkEligibility(examConfig.blueprintId);
       if (!eligibility.data.is_valid) {
-        setAlertInfo({ type: 'error', message: "Không đủ số lượng câu hỏi trong cơ sở dữ liệu theo cấu trúc Blueprint, không thể tạo đề thi." });
+        setAlertInfo({ type: 'error', message: t('examGen.validationErrorNotEnough') });
         setIsLoading(false);
         return;
       }
@@ -311,14 +311,14 @@ export default function ExamGenerator() {
       // Generate questions
       const examData = await examApi.generateExam(draftRes.data.id);
 
-      setAlertInfo({ type: 'success', message: "Tạo đề thi thành công! Đang hiển thị bản xem trước..." });
+      setAlertInfo({ type: 'success', message: t('examGen.generateSuccess') });
 
       // Instead of navigating, display it inline
       setGeneratedExamId(examData.data.id);
       setStep(4); // Step 4: Review
     } catch (e: any) {
       console.error(e);
-      setAlertInfo({ type: 'error', message: e.message || "Tạo đề thi thất bại. Vui lòng kiểm tra lại Ngân hàng câu hỏi." });
+      setAlertInfo({ type: 'error', message: e.message || t('examGen.generateFailed') });
       setStep(2);
     } finally {
       setIsLoading(false);
@@ -422,9 +422,9 @@ export default function ExamGenerator() {
                   onChange={handleBlueprintChange}
                   className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="" disabled>-- Chọn Ma trận --</option>
+                  <option value="" disabled>{t('examGen.selectBlueprintPlaceholder')}</option>
                   {blueprints.map(b => (
-                    <option key={b.id} value={b.id}>{b.title} ({b.total_questions} câu) {b.status !== 'validated' ? '(Chưa đủ ĐK)' : ''}</option>
+                    <option key={b.id} value={b.id}>{b.title} ({b.total_questions} {t('exam.questions')}) {b.status !== 'validated' ? '(Chưa đủ ĐK)' : ''}</option>
                   ))}
                 </select>
               </div>
@@ -501,15 +501,15 @@ export default function ExamGenerator() {
               </div>
               <div className="space-y-2 text-sm opacity-90">
                 <div className="flex items-center justify-between">
-                  <span>Tổng số câu</span>
+                  <span>{t('blueprint.total')}</span>
                   <span className="font-semibold">{qualityInfo.totalQuestions}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Số LO phủ</span>
+                  <span>{t('examGen.loCovered')}</span>
                   <span className="font-semibold">{qualityInfo.loCount}/{qualityInfo.totalCourseLOs} LO</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Loại câu hỏi</span>
+                  <span>{t('blueprint.questionType')}</span>
                   <span className="font-semibold">{qualityInfo.displayTypes}</span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -534,7 +534,7 @@ export default function ExamGenerator() {
               <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-4">
                 <FileText className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-medium text-slate-800 dark:text-slate-200 mb-2">Đề thi sẽ được hiển thị sau khi tạo</h3>
+              <h3 className="text-xl font-medium text-slate-800 dark:text-slate-200 mb-2">{t('examGen.previewDisplay')}</h3>
               <p className="text-slate-500 dark:text-slate-400 max-w-sm">
                 Vui lòng thiết lập cấu hình ở bên trái và nhấn nút "Tạo đề thi" để AI tự động lấy câu hỏi ngẫu nhiên từ ngân hàng dựa trên ma trận (Blueprint).
               </p>

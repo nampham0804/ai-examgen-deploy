@@ -1,0 +1,274 @@
+
+--- Layout.tsx ---
+L157: Tiếng Việt
+
+--- AppContext.tsx ---
+L179: 'nav.dashboard': 'Trang Chủ',
+L180: 'nav.courses': 'Khóa Học',
+L181: 'nav.learningOutcomes': 'Chuẩn Đầu Ra',
+L182: 'nav.examBlueprint': 'Ma Trận Đề Thi',
+L183: 'nav.aiGeneration': 'Tạo Câu Hỏi AI',
+L184: 'nav.questionBank': 'Ngân Hàng Câu Hỏi',
+L185: 'nav.examGenerator': 'Tạo Đề Thi',
+L186: 'nav.review': 'Duyệt & Phê Duyệt',
+L187: 'nav.analytics': 'Phân Tích',
+L190: 'dashboard.title': 'Trang Chủ',
+L191: 'dashboard.totalCourses': 'Tổng Khóa Học',
+L192: 'dashboard.totalLOs': 'Tổng Chuẩn Đầu Ra',
+L193: 'dashboard.totalQuestions': 'Tổng Câu Hỏi',
+L194: 'dashboard.pendingQuestions': 'Câu Hỏi Chờ Duyệt',
+L195: 'dashboard.approvedQuestions': 'Câu Hỏi Đã Duyệt',
+L196: 'dashboard.totalExams': 'Tổng Đề Thi',
+L197: 'dashboard.blueprints': 'Tổng Ma Trận (Blueprints)',
+L198: 'dashboard.recentActivities': 'Hoạt Động Gần Đây',
+L199: 'dashboard.difficultyDistribution': 'Phân Bổ Độ Khó Câu Hỏi',
+L200: 'dashboard.loCoverage': 'Độ Phủ Chuẩn Đầu Ra',
+L201: 'dashboard.aiActivity': 'Tóm Tắt Hoạt Động AI',
+L202: 'dashboard.quickActions': 'Thao Tác Nhanh',
+L203: 'dashboard.createCourse': 'Tạo Khóa Học',
+L204: 'dashboard.generateQuestions': 'Tạo Câu Hỏi',
+L205: 'dashboard.createExam': 'Tạo Đề Thi',
+L206: 'dashboard.recentAIQuestions': 'Câu Hỏi AI Gần Đây',
+L209: 'courses.title': 'Quản Lý Khóa Học',
+L210: 'courses.addCourse': 'Thêm Khóa Học',
+L211: 'courses.search': 'Tìm kiếm khóa học...',
+L212: 'courses.code': 'Mã Khóa Học',
+L213: 'courses.name': 'Tên Khóa Học',
+L214: 'courses.credits': 'Tín Chỉ',
+L215: 'courses.status': 'Trạng Thái',
+L216: 'courses.actions': 'Thao Tác',
+L217: 'courses.active': 'Hoạt Động',
+L218: 'courses.draft': 'Nháp',
+L219: 'courses.archived': 'Lưu Trữ',
+L222: 'lo.title': 'Chuẩn Đầu Ra',
+L223: 'lo.create': 'Tạo Chuẩn Đầu Ra',
+L224: 'lo.code': 'Mã CDR',
+L225: 'lo.description': 'Mô Tả',
+L226: 'lo.coverage': 'Độ Phủ',
+L227: 'lo.course': 'Khóa Học',
+L230: 'blueprint.title': 'Ma Trận Đề Thi',
+L231: 'blueprint.subtitle': 'Thiết kế phân bổ câu hỏi theo Chuẩn đầu ra (LO)',
+L232: 'blueprint.learningOutcome': 'Chuẩn Đầu Ra',
+L233: 'blueprint.easy': 'Dễ',
+L234: 'blueprint.medium': 'Trung Bình',
+L235: 'blueprint.hard': 'Khó',
+L236: 'blueprint.total': 'Tổng',
+L237: 'blueprint.validate': 'Kiểm Tra Ma Trận',
+L238: 'blueprint.save': 'Lưu Ma Trận',
+L239: 'blueprint.selectCourse': 'Chọn Môn Học (Tìm kiếm)',
+L240: 'blueprint.searchPlaceholder': 'Tìm kiếm mã hoặc tên môn học...',
+L241: 'blueprint.noCourses': 'Không tìm thấy môn học.',
+L242: 'blueprint.check': 'Kiểm tra',
+L243: 'blueprint.saving': 'Đang lưu...',
+L244: 'blueprint.update': 'Cập nhật',
+L245: 'blueprint.saveSuccess': 'Lưu ma trận đề thi thành công!',
+L246: 'blueprint.saveError': 'Có lỗi xảy ra khi lưu ma trận. Vui lòng thử lại.',
+L247: 'blueprint.balanced': 'Tỉ lệ độ khó rất cân đối!',
+L248: 'blueprint.unbalanced': 'Tỉ lệ câu hỏi cần điều chỉnh lại',
+L249: 'blueprint.balancedDesc': 'Phân bổ độ khó đang tuân thủ đúng chuẩn (Dễ: 30-50%, Trung bình: 30-50%, Khó: 10-30%)',
+L250: 'blueprint.unbalancedDesc': 'Khuyến nghị: Dễ 30-50%, Trung bình 30-50%, Khó 10-30%.',
+L251: 'blueprint.validationSuccess': 'Kiểm tra ma trận thành công',
+L252: 'blueprint.validationFailed': 'Thiếu câu hỏi trong ngân hàng',
+L253: 'blueprint.validationSuccessDesc': 'Tất cả câu hỏi yêu cầu đã có sẵn trong Ngân hàng câu hỏi đã duyệt.',
+L254: 'blueprint.validationFailedDesc': 'Có một số câu hỏi còn thiếu trong Ngân hàng câu hỏi. Vui lòng thêm câu hỏi hoặc điều chỉnh lại ma trận.',
+L255: 'blueprint.autoTotal': 'Tổng số câu hỏi',
+L256: 'blueprint.autoTypes': 'Loại câu hỏi',
+L257: 'blueprint.autoBtn': 'Phân bổ tự động',
+L258: 'blueprint.selectAtLeastOneType': 'Vui lòng chọn ít nhất 1 loại câu hỏi',
+L259: 'blueprint.lo': 'Chuẩn đầu ra (Nội dung)',
+L260: 'blueprint.questionType': 'Loại câu hỏi',
+L261: 'blueprint.numQuestions': 'Số câu hỏi',
+L262: 'blueprint.delete': 'Xóa',
+L263: 'blueprint.addType': '-- Chọn loại câu hỏi --',
+L264: 'blueprint.addBtn': 'Thêm',
+L265: 'blueprint.allTypesAdded': 'Đã thêm tất cả loại câu hỏi.',
+L266: 'blueprint.addTypeStart': '-- Chọn loại câu hỏi để bắt đầu --',
+L267: 'blueprint.addTypeBtn': 'Thêm Loại C.Hỏi',
+L268: 'blueprint.grandTotal': 'TỔNG CỘNG',
+L269: 'blueprint.confirmDelete': 'Bạn có chắc chắn muốn xóa ma trận này không?',
+L272: 'ai.title': 'Tạo Câu Hỏi AI',
+L273: 'ai.selectCourse': 'Chọn Khóa Học',
+L274: 'ai.selectLO': 'Chọn Chuẩn Đầu Ra',
+L275: 'ai.uploadDocuments': 'Tải Lên Tài Liệu',
+L276: 'ai.textInput': 'Hoặc Nhập Văn Bản',
+L277: 'ai.questionType': 'Loại Câu Hỏi',
+L278: 'ai.difficulty': 'Độ Khó',
+L279: 'ai.numQuestions': 'Số Câu Hỏi',
+L280: 'ai.generate': 'Tạo Câu Hỏi',
+L281: 'ai.workflow': 'Quy Trình AI',
+L282: 'ai.processing': 'Đang xử lý...',
+L283: 'ai.generatedQuestions': 'Câu Hỏi Đã Tạo',
+L284: 'ai.accept': 'Chấp Nhận',
+L285: 'ai.edit': 'Chỉnh Sửa',
+L286: 'ai.regenerate': 'Tạo Lại',
+L287: 'ai.saveToBank': 'Lưu Vào Ngân Hàng',
+L290: 'bank.title': 'Ngân Hàng Câu Hỏi',
+L291: 'bank.search': 'Tìm kiếm câu hỏi...',
+L292: 'bank.filters': 'Bộ Lọc',
+L293: 'bank.bulkActions': 'Thao Tác Hàng Loạt',
+L294: 'bank.approved': 'Đã Duyệt',
+L295: 'bank.pending': 'Chờ Duyệt',
+L296: 'bank.rejected': 'Từ Chối',
+L299: 'exam.title': 'Tạo Đề Thi',
+L300: 'exam.configure': 'Cấu Hình Đề Thi',
+L301: 'exam.selectBlueprint': 'Chọn Ma Trận',
+L302: 'exam.preview': 'Xem Trước Đề Thi',
+L303: 'exam.export': 'Xuất File',
+L304: 'exam.generate': 'Tạo Đề Thi',
+L307: 'review.title': 'Duyệt & Phê Duyệt Câu Hỏi',
+L308: 'review.approve': 'Phê Duyệt',
+L309: 'review.reject': 'Từ Chối',
+L310: 'review.quality': 'Điểm Chất Lượng',
+L311: 'review.alignment': 'Căn Chỉnh CDR',
+L314: 'analytics.title': 'Bảng Phân Tích',
+L315: 'analytics.loCoverage': 'Bản Đồ Nhiệt Độ Phủ CDR',
+L316: 'analytics.questionGrowth': 'Tăng Trưởng Ngân Hàng Câu Hỏi',
+L317: 'analytics.examStats': 'Thống Kê Tạo Đề Thi',
+L318: 'analytics.aiPerformance': 'Hiệu Suất AI',
+L321: 'common.edit': 'Sửa',
+L322: 'common.delete': 'Xóa',
+L323: 'common.save': 'Lưu',
+L324: 'common.cancel': 'Hủy',
+L325: 'common.search': 'Tìm kiếm',
+L326: 'common.filter': 'Lọc',
+L327: 'common.export': 'Xuất',
+L328: 'common.import': 'Nhập',
+L329: 'common.settings': 'Cài Đặt',
+L330: 'common.profile': 'Hồ Sơ',
+L331: 'common.logout': 'Đăng Xuất',
+L332: 'common.notifications': 'Thông Báo',
+L333: 'common.multipleChoice': 'Trắc Nghiệm',
+L334: 'common.essay': 'Tự Luận',
+L335: 'common.trueFalse': 'Đúng/Sai',
+
+--- Dashboard.tsx ---
+L41: text: `Tạo câu hỏi mới cho môn ${q.course} (${q.lo})`,
+L50: text: `Tạo đề thi: ${e.title} (${e.course})`,
+L128: { name: 'Dễ', value: dashboardStats.difficulty_distribution.easy },
+L129: { name: 'Trung bình', value: dashboardStats.difficulty_distribution.medium },
+L130: { name: 'Khó', value: dashboardStats.difficulty_distribution.hard },
+L141: { name: 'Dễ', value: dashboardStats.difficulty_distribution.easy },
+L142: { name: 'Trung bình', value: dashboardStats.difficulty_distribution.medium },
+L143: { name: 'Khó', value: dashboardStats.difficulty_distribution.hard },
+L155: <div className="text-gray-500 flex items-center justify-center h-full w-full">Chưa có dữ liệu câu hỏi</div>
+L162: <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Phân bố loại câu hỏi</h2>
+L174: <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]} name="Số lượng">
+L182: <div className="text-gray-500 flex items-center justify-center h-full w-full">Chưa có dữ liệu câu hỏi</div>
+
+--- ExamBlueprint.tsx ---
+L220: setErrorMessage(error instanceof Error ? error.message : "Có lỗi xảy ra khi tải dữ liệu CLO hoặc Blueprint từ hệ thống.");
+L279: alert(t('blueprint.selectAtLeastOneType') || 'Vui lòng chọn ít nhất 1 loại câu hỏi (điền số lượng > 0)');
+L415: if (item.easy > availEasy) details.push(`CLO ${row.loCode} (${item.type}): Thiếu ${item.easy - availEasy} câu Dễ`);
+L416: if (item.medium > availMed) details.push(`CLO ${row.loCode} (${item.type}): Thiếu ${item.medium - availMed} câu Trung bình`);
+L417: if (item.hard > availHard) details.push(`CLO ${row.loCode} (${item.type}): Thiếu ${item.hard - availHard} câu Khó`);
+L456: title: `Ma trận đề thi - ${course?.code || 'Course'}`,
+L557: {t('blueprint.autoTypes') || 'Nhập số lượng cho từng loại câu hỏi'}
+L580: {t('blueprint.autoTotal') || 'Tổng'}: <span className="text-xl text-indigo-600 dark:text-indigo-400 font-bold ml-1">{Object.values(autoTypeCounts).reduce((a, b) => a + b, 0)}</span>
+L587: {t('blueprint.autoBtn') || 'Phân bổ tự động'}
+L629: Môn học này hiện chưa có Chuẩn đầu ra (CLO) nào trong CSDL. Vui lòng thêm CLO trước khi tạo Ma trận đề thi.
+L683: title="Xóa loại câu hỏi này"
+L779: <DialogTitle>Tỉ lệ phân bố chưa chuẩn</DialogTitle>
+L783: Tỉ lệ phân bố hiện tại đang là: <span className="font-semibold text-green-600">Dễ ({percentages.easy}%)</span> - <span className="font-semibold text-amber-600">TB ({percentages.medium}%)</span> - <span className="font-semibold text-red-600">Khó ({percentages.hard}%)</span>.
+L786: Tỉ lệ chuẩn được khuyến nghị là <strong>Dễ (30-50%), TB (30-50%), Khó (10-30%)</strong>. Việc lưu ma trận với tỉ lệ không chuẩn có thể ảnh hưởng đến chất lượng đề thi.
+L788: <p className="font-medium text-red-600 dark:text-red-400">Bạn có chắc chắn muốn lưu ma trận này không?</p>
+L791: <Button variant="outline" onClick={() => setShowUnbalancedWarning(false)}>Kiểm tra lại</Button>
+L792: <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={handleUnbalancedProceed}>Vẫn lưu</Button>
+L800: <DialogTitle>Thiếu câu hỏi trong Ngân hàng</DialogTitle>
+L804: Học phần này không đáp ứng đủ số câu hỏi theo Blueprint bạn vừa thiết lập. Blueprint sẽ được lưu dưới dạng <strong>Bản nháp (Draft)</strong> và không thể dùng để tạo đề thi cho đến khi bạn bổ sung đủ câu hỏi.
+L808: <p className="font-semibold text-red-800 dark:text-red-400 mb-2">Chi tiết số câu còn thiếu:</p>
+L816: <p className="font-medium text-red-600 dark:text-red-400">Bạn muốn tiếp tục lưu Blueprint hay chuyển sang Ngân hàng để tạo thêm câu hỏi?</p>
+L819: <Button variant="outline" onClick={() => navigate('/ai-generation')}>Chuyển sang gen câu hỏi</Button>
+L820: <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={executeSave}>Vẫn lưu Blueprint</Button>
+
+--- ExamGenerator.tsx ---
+L56: {selectedCourse ? `${selectedCourse.code} - ${selectedCourse.name}` : 'Chọn môn học...'}
+L68: placeholder="Tìm môn học..."
+L90: <div className="p-3 text-sm text-gray-500 text-center">Không tìm thấy môn học</div>
+L200: // 1. Tổng số câu: Lấy theo tổng số lượng câu hỏi được quy định trong Blueprint
+L203: // 2. Số LO phủ: Tổng số lượng chuẩn đầu ra có trong Blueprint đó
+L206: // 3. Loại câu hỏi: Hiển thị danh sách các định dạng câu hỏi
+L220: // 4. Blueprint Alignment: Thực hiện tính toán so khớp ma trận
+L229: // 4. Balance Score: Tính toán độ cân bằng phân bổ LO (sử dụng độ lệch chuẩn/CV)
+L232: // Gộp tổng số lượng câu hỏi cho từng learning_outcome_id
+L245: balanceScore = 'Mất cân bằng'; // Thiếu LO so với môn học
+L248: balanceScore = 'Rất cân bằng'; // Chỉ có 1 LO
+L256: balanceScore = 'Rất cân bằng';
+L258: balanceScore = 'Cân bằng';
+L260: balanceScore = 'Mất cân bằng';
+L265: // Tính phần trăm loCoverage dựa trên totalCourseLOs
+L288: setAlertInfo({ type: 'error', message: "Vui lòng chọn Blueprint (Ma trận đề thi) hợp lệ đã được kiểm duyệt." });
+L297: setAlertInfo({ type: 'error', message: "Không đủ số lượng câu hỏi trong cơ sở dữ liệu theo cấu trúc Blueprint, không thể tạo đề thi." });
+L314: setAlertInfo({ type: 'success', message: "Tạo đề thi thành công! Đang hiển thị bản xem trước..." });
+L321: setAlertInfo({ type: 'error', message: e.message || "Tạo đề thi thất bại. Vui lòng kiểm tra lại Ngân hàng câu hỏi." });
+L341: Quản lý đề thi
+L425: <option value="" disabled>-- Chọn Ma trận --</option>
+L427: <option key={b.id} value={b.id}>{b.title} ({b.total_questions} câu) {b.status !== 'validated' ? '(Chưa đủ ĐK)' : ''}</option>
+L444: <AlertTitle>{alertInfo.type === 'success' ? 'Thành công' : alertInfo.type === 'info' ? 'Thông báo' : 'Lỗi'}</AlertTitle>
+L482: <span className="font-semibold text-gray-900 dark:text-white">{d.value} câu</span>
+L490: <p className="text-sm">Chọn Blueprint để xem phân phối độ khó</p>
+L504: <span>Tổng số câu</span>
+L508: <span>Số LO phủ</span>
+L512: <span>Loại câu hỏi</span>
+L537: <h3 className="text-xl font-medium text-slate-800 dark:text-slate-200 mb-2">Đề thi sẽ được hiển thị sau khi tạo</h3>
+L539: Vui lòng thiết lập cấu hình ở bên trái và nhấn nút "Tạo đề thi" để AI tự động lấy câu hỏi ngẫu nhiên từ ngân hàng dựa trên ma trận (Blueprint).
+
+--- ExamList.tsx ---
+L61: alert("Xóa đề thi thất bại!");
+L83: alert(`Xuất file ${selectedFormat.toUpperCase()} thất bại!`);
+L155: <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Quản lý Đề thi</h1>
+L157: Xem, chỉnh sửa và quản lý tất cả các đề thi đã tạo
+L165: Tạo đề thi mới
+L177: placeholder="Tìm kiếm đề thi..."
+L192: <p className="text-xs text-gray-500 dark:text-gray-400">Tổng số đề thi</p>
+L199: <Filter className="w-3 h-3 inline mr-1" />Thời lượng
+L206: <option value="all">Tất cả</option>
+L207: <option value="60">≤ 60 phút</option>
+L208: <option value="90">61 - 90 phút</option>
+L209: <option value="120">91 - 120 phút</option>
+L210: <option value="999">&gt; 120 phút</option>
+L217: <Filter className="w-3 h-3 inline mr-1" />Số câu hỏi (từ - đến)
+L223: placeholder="Từ"
+L232: placeholder="Đến"
+L250: <p className="text-lg font-medium">Chưa có đề thi nào</p>
+L251: <p className="text-sm mt-1">Nhấn "Tạo đề thi mới" để bắt đầu</p>
+L257: <th className="text-left px-6 py-3.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tên đề thi</th>
+L260: Số câu
+L266: Thời lượng
+L272: Ngày tạo
+L276: <th className="text-left px-6 py-3.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Chỉnh sửa lần cuối</th>
+L277: <th className="text-right px-6 py-3.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Thao tác</th>
+L305: {exam.total_questions} câu
+L310: {exam.duration_minutes} phút
+L326: title="Xem trước"
+L338: title="Xuất File"
+L348: title="Xóa"
+L365: <DialogTitle>Xác nhận xóa đề thi</DialogTitle>
+L368: Bạn có chắc chắn muốn xóa đề thi <strong>"{deleteTarget?.title}"</strong>? Hành động này không thể hoàn tác.
+L372: Hủy
+L380: Xóa
+L388: <DialogTitle>Chọn định dạng xuất file</DialogTitle>
+L413: <Button variant="outline" onClick={() => setExportModalOpen(false)}>Hủy</Button>
+L416: Xuất File
+
+--- ExamPreview.tsx ---
+L60: const errMsg = e.response?.data?.detail || e.message || "Không còn câu hỏi tương tự trong Ngân hàng đề đáp ứng điều kiện. Vui lòng bổ sung thêm câu hỏi mới.";
+L138: setActionAlert({ type: 'success', message: `Xuất file ${selectedFormat.toUpperCase()} thành công! File đang được tải xuống.` });
+L141: setActionAlert({ type: 'error', message: `Xuất file ${selectedFormat.toUpperCase()} thất bại!` });
+L156: setActionAlert({ type: 'success', message: 'Đã xác nhận và lưu đề thi thành công! Giao diện sẽ được làm mới...' });
+L167: setActionAlert({ type: 'error', message: 'Có lỗi xảy ra khi lưu đề thi.' });
+L180: setActionAlert({ type: 'success', message: 'Đã lưu bản nháp thành công!' });
+L183: setActionAlert({ type: 'error', message: 'Có lỗi xảy ra khi lưu bản nháp.' });
+L268: <h3 className="font-semibold text-lg text-slate-800">Câu {index + 1}</h3>
+L313: Đổi câu hỏi
+L342: <div className="text-xs font-semibold text-blue-700 mb-1 uppercase tracking-wider">Đáp án đúng</div>
+L348: <div className="text-xs font-semibold text-blue-700 mb-1 uppercase tracking-wider">Giải thích</div>
+L360: <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Đáp án mẫu</div>
+L361: <div className="text-slate-700 text-sm whitespace-pre-wrap">{q.sample_answer || 'Chưa cập nhật'}</div>
+L364: <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Rubric chấm điểm</div>
+L365: <div className="text-slate-700 text-sm whitespace-pre-wrap">{q.rubric || 'Chưa cập nhật'}</div>
+L369: <div className="text-xs font-semibold text-blue-700 mb-1 uppercase tracking-wider">Giải thích</div>
+L383: <AlertTitle>{actionAlert.type === 'success' ? 'Thành công' : 'Lỗi'}</AlertTitle>
+L395: Lưu bản nháp
+L407: <DialogTitle>Chọn định dạng xuất file</DialogTitle>
+L432: <Button variant="outline" onClick={() => setExportModalOpen(false)}>Hủy</Button>
+L435: Xuất File

@@ -152,14 +152,14 @@ export default function Dashboard() {
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="text-gray-500 flex items-center justify-center h-full w-full">Chưa có dữ liệu câu hỏi</div>
+                <div className="text-gray-500 flex items-center justify-center h-full w-full">{t('dashboard.noData')}</div>
               )}
             </div>
           </div>
 
           {/* Question Type Distribution Chart */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 flex flex-col">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Phân bố loại câu hỏi</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('dashboard.typeDistribution')}</h2>
             <div className="flex-1 flex items-center justify-center min-h-[250px]">
               {dashboardStats?.type_distribution && dashboardStats.type_distribution.length > 0 ? (
                 <ResponsiveContainer width="100%" height={250}>
@@ -171,7 +171,7 @@ export default function Dashboard() {
                       cursor={{ fill: 'transparent' }}
                       contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
                     />
-                    <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]} name="Số lượng">
+                    <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]} name={t("dashboard.quantity")}>
                       {dashboardStats.type_distribution.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6'][index % 4]} />
                       ))}
@@ -179,7 +179,7 @@ export default function Dashboard() {
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="text-gray-500 flex items-center justify-center h-full w-full">Chưa có dữ liệu câu hỏi</div>
+                <div className="text-gray-500 flex items-center justify-center h-full w-full">{t('dashboard.noData')}</div>
               )}
             </div>
           </div>

@@ -805,7 +805,7 @@ export default function ExamBlueprint() {
             </p>
             {missingDetails.length > 0 && (
               <div className="mb-4 bg-red-50 dark:bg-red-900/20 p-3 rounded-md border border-red-100 dark:border-red-800">
-                <p className="font-semibold text-red-800 dark:text-red-400 mb-2">Chi tiết số câu còn thiếu:</p>
+                <p className="font-semibold text-red-800 dark:text-red-400 mb-2">{t('blueprint.missingDetails')}</p>
                 <ul className="list-disc pl-5 space-y-1 text-red-700 dark:text-red-300">
                   {missingDetails.map((detail, idx) => (
                     <li key={idx}>{detail}</li>
@@ -816,8 +816,8 @@ export default function ExamBlueprint() {
             <p className="font-medium text-red-600 dark:text-red-400">Bạn muốn tiếp tục lưu Blueprint hay chuyển sang Ngân hàng để tạo thêm câu hỏi?</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => navigate('/ai-generation')}>Chuyển sang gen câu hỏi</Button>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={executeSave}>Vẫn lưu Blueprint</Button>
+            <Button variant="outline" onClick={() => navigate('/ai-generation')}>{t('blueprint.goToGen')}</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={executeSave}>{t('blueprint.saveAnyway')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

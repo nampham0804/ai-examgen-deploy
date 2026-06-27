@@ -135,10 +135,10 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      setActionAlert({ type: 'success', message: `Xuất file ${selectedFormat.toUpperCase()} thành công! File đang được tải xuống.` });
+      setActionAlert({ type: 'success', message: t('exam.exportSuccess').replace('{format}', selectedFormat.toUpperCase()) });
     } catch (e) {
       console.error(e);
-      setActionAlert({ type: 'error', message: `Xuất file ${selectedFormat.toUpperCase()} thất bại!` });
+      setActionAlert({ type: 'error', message: t('exam.exportFailed').replace('{format}', selectedFormat.toUpperCase()) });
     } finally {
       setIsExporting(false);
     }
@@ -153,7 +153,7 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
         status: 'approved' 
       });
       setData({ ...data, status: 'approved' });
-      setActionAlert({ type: 'success', message: 'Đã xác nhận và lưu đề thi thành công! Giao diện sẽ được làm mới...' });
+      setActionAlert({ type: 'success', message: t('exam.savedSuccess') });
       // After 2 seconds, call onSaved to reset parent or navigate
       setTimeout(() => {
         if (onSaved) {
@@ -164,7 +164,7 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
       }, 2000);
     } catch (e) {
       console.error(e);
-      setActionAlert({ type: 'error', message: 'Có lỗi xảy ra khi lưu đề thi.' });
+      setActionAlert({ type: 'error', message: t('exam.saveError') });
     }
   };
 
@@ -177,10 +177,10 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
         status: 'draft' 
       });
       setData({ ...data, status: 'draft' });
-      setActionAlert({ type: 'success', message: 'Đã lưu bản nháp thành công!' });
+      setActionAlert({ type: 'success', message: t('exam.saveDraftSuccess') });
     } catch (e) {
       console.error(e);
-      setActionAlert({ type: 'error', message: 'Có lỗi xảy ra khi lưu bản nháp.' });
+      setActionAlert({ type: 'error', message: t('exam.draftError') });
     }
   };
 
@@ -265,7 +265,7 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
                   <div className="cursor-grab hover:bg-slate-200 p-1 rounded active:cursor-grabbing text-slate-400">
                     <GripVertical className="w-5 h-5" />
                   </div>
-                  <h3 className="font-semibold text-lg text-slate-800">Câu {index + 1}</h3>
+                  <h3 className="font-semibold text-lg text-slate-800">{t('exam.questionIndex').replace('{index}', (index + 1).toString())}</h3>
                   <span className={`px-2 py-0.5 rounded text-xs font-medium uppercase ${
                     q.difficulty === 'easy' ? 'bg-green-100 text-green-700' :
                     q.difficulty === 'medium' ? 'bg-amber-100 text-amber-700' :
@@ -339,13 +339,13 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
                     <div className="mt-4 p-4 bg-blue-50 border border-blue-100 rounded-md space-y-3">
                       {q.correct_answer && (
                         <div>
-                          <div className="text-xs font-semibold text-blue-700 mb-1 uppercase tracking-wider">Đáp án đúng</div>
+                          <div className="text-xs font-semibold text-blue-700 mb-1 uppercase tracking-wider">{t('exam.correctAnswer')}</div>
                           <div className="text-slate-800 text-sm font-medium">{q.correct_answer}</div>
                         </div>
                       )}
                       {q.explanation && (
                         <div>
-                          <div className="text-xs font-semibold text-blue-700 mb-1 uppercase tracking-wider">Giải thích</div>
+                          <div className="text-xs font-semibold text-blue-700 mb-1 uppercase tracking-wider">{t('exam.explanation')}</div>
                           <div className="text-slate-700 text-sm whitespace-pre-wrap">{q.explanation}</div>
                         </div>
                       )}
@@ -357,16 +357,16 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
               {(q.type === 'Essay' || q.type === 'essay') && (
                 <div className="mt-4 space-y-4 ml-9">
                   <div className="p-4 bg-white border rounded-md">
-                    <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Đáp án mẫu</div>
-                    <div className="text-slate-700 text-sm whitespace-pre-wrap">{q.sample_answer || 'Chưa cập nhật'}</div>
+                    <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">{t('exam.sampleAnswer')}</div>
+                    <div className="text-slate-700 text-sm whitespace-pre-wrap">{q.sample_answer || t('exam.notUpdated')}</div>
                   </div>
                   <div className="p-4 bg-slate-100 border rounded-md">
-                    <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Rubric chấm điểm</div>
-                    <div className="text-slate-700 text-sm whitespace-pre-wrap">{q.rubric || 'Chưa cập nhật'}</div>
+                    <div className="text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">{t('exam.gradingRubric')}</div>
+                    <div className="text-slate-700 text-sm whitespace-pre-wrap">{q.rubric || t('exam.notUpdated')}</div>
                   </div>
                   {q.explanation && (
                     <div className="p-4 bg-blue-50 border border-blue-100 rounded-md">
-                      <div className="text-xs font-semibold text-blue-700 mb-1 uppercase tracking-wider">Giải thích</div>
+                      <div className="text-xs font-semibold text-blue-700 mb-1 uppercase tracking-wider">{t('exam.explanation')}</div>
                       <div className="text-slate-700 text-sm whitespace-pre-wrap">{q.explanation}</div>
                     </div>
                   )}
@@ -404,7 +404,7 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
       <Dialog open={exportModalOpen} onOpenChange={setExportModalOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Chọn định dạng xuất file</DialogTitle>
+            <DialogTitle>{t('exam.exportFormatTitle')}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3 py-4">
             {[
@@ -429,7 +429,7 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setExportModalOpen(false)}>Hủy</Button>
+            <Button variant="outline" onClick={() => setExportModalOpen(false)}>{t('common.cancel')}</Button>
             <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleExportSubmit}>
               <Download className="w-4 h-4 mr-2" />
               Xuất File
