@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 
 from src.models.exam import Exam, ExamBlueprint, ExamBlueprintItem, ExamQuestion
 from src.schemas.blueprint import BlueprintCreate, BlueprintUpdate
-from src.schemas.exam_schema import ExamCreate
+from src.schemas.exam_schema import ExamCreate, ExamUpdate
 
 
 class ExamRepository:
@@ -96,8 +96,19 @@ class ExamRepository:
     def get_exams_by_course(self, course_id: int):
         return self.db.query(Exam).filter(Exam.course_id == course_id).all()
 
+    def get_all_exams(self):
+        return self.db.query(Exam).order_by(Exam.id.desc()).all()
+
     def get_exam_by_id(self, exam_id: int):
         return self.db.query(Exam).filter(Exam.id == exam_id).first()
+
+    def delete_exam(self, exam_id: int):
+        db_exam = self.get_exam_by_id(exam_id)
+        if db_exam:
+            self.db.delete(db_exam)
+            self.db.commit()
+            return True
+        return False
 
     def update_exam_status(self, exam_id: int, status: str, total_questions: int = None):
         db_exam = self.get_exam_by_id(exam_id)
@@ -109,15 +120,29 @@ class ExamRepository:
             self.db.refresh(db_exam)
         return db_exam
 
-    def add_exam_questions(self, exam_id: int, question_ids: list[int]):
+    def update_exam(self, exam_id: int, exam_update: ExamUpdate):
+        db_exam = self.get_exam_by_id(exam_id)
+        if db_exam:
+            if exam_update.title is not None:
+                db_exam.title = exam_update.title
+            if exam_update.duration_minutes is not None:
+                db_exam.duration_minutes = exam_update.duration_minutes
+            if exam_update.status is not None:
+                db_exam.status = exam_update.status
+            self.db.commit()
+            self.db.refresh(db_exam)
+        return db_exam
+
+    def add_exam_questions(self, exam_id: int, questions_info: list[dict]):
         # First remove any existing questions
         self.db.query(ExamQuestion).filter(ExamQuestion.exam_id == exam_id).delete()
 
         # Add new questions
-        for idx, q_id in enumerate(question_ids):
+        for idx, info in enumerate(questions_info):
             db_eq = ExamQuestion(
                 exam_id=exam_id,
-                question_id=q_id,
+                question_id=info["question_id"],
+                criteria_id=info.get("criteria_id"),
                 order_index=idx
             )
             self.db.add(db_eq)

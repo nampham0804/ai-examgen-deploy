@@ -51,5 +51,11 @@ def delete_blueprint(blueprint_id: int, db: Session = Depends(get_db)):
 @router.post("/{blueprint_id}/validate", response_model=ValidationResultResponse)
 def validate_blueprint(blueprint_id: int, db: Session = Depends(get_db)):
     service = ExamService(db)
-    validation_result = service.validate_blueprint(blueprint_id)
+    validation_result = service.validate_blueprint(blueprint_id, update_status=True)
     return {"data": validation_result, "message": "Blueprint validation completed"}
+
+@router.get("/{blueprint_id}/eligibility", response_model=ValidationResultResponse)
+def check_eligibility(blueprint_id: int, db: Session = Depends(get_db)):
+    service = ExamService(db)
+    validation_result = service.validate_blueprint(blueprint_id, update_status=False)
+    return {"data": validation_result, "message": "Blueprint eligibility check completed"}

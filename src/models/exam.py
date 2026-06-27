@@ -62,7 +62,10 @@ class ExamQuestion(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     exam_id = Column(Integer, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
-    question_id = Column(Integer, nullable=False) # Foreign key to questions.id when it exists
+    question_id = Column(Integer, ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
+    criteria_id = Column(Integer, ForeignKey("exam_blueprint_items.id", ondelete="SET NULL"), nullable=True)
     order_index = Column(Integer, default=0)
 
     exam = relationship("Exam", back_populates="questions")
+    question = relationship("Question")
+    criteria = relationship("ExamBlueprintItem")

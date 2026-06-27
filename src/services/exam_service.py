@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from src.repositories.exam_repository import ExamRepository
 from src.schemas.blueprint import BlueprintCreate, BlueprintUpdate, ValidationDetail, ValidationResultData
-from src.schemas.exam_schema import ExamCreate, ExamPreviewData, ExamPreviewQuestion
+from src.schemas.exam_schema import ExamCreate, ExamPreviewData, ExamPreviewQuestion, ExamUpdate
 
 
 class ExamService:
@@ -54,7 +54,7 @@ class ExamService:
             raise HTTPException(status_code=404, detail="Blueprint not found")
         return True
 
-    def validate_blueprint(self, blueprint_id: int) -> ValidationResultData:
+    def validate_blueprint(self, blueprint_id: int, update_status: bool = True) -> ValidationResultData:
         blueprint = self.get_blueprint_by_id(blueprint_id)
 
         # Query approved questions matching blueprint requirements
@@ -130,7 +130,7 @@ class ExamService:
                 )
             )
 
-        if all_valid:
+        if all_valid and update_status:
             # Update status to validated
             blueprint_update = BlueprintUpdate(status="validated")
             self.repo.update_blueprint(blueprint_id, blueprint_update)
@@ -142,10 +142,37 @@ class ExamService:
         return self.repo.create_exam(exam_in)
 
     def get_exams_by_course(self, course_id: int):
-        return self.repo.get_exams_by_course(course_id)
+        return self._fetch_exams_with_details("WHERE e.course_id = :course_id", {"course_id": course_id})
+
+    def get_all_exams(self):
+        return self._fetch_exams_with_details("", {})
+
+    def _fetch_exams_with_details(self, where_clause: str, params: dict):
+        query = text(f"""
+            SELECT e.*, c.name as course_name, b.title as blueprint_name
+            FROM exams e
+            LEFT JOIN courses c ON e.course_id = c.id
+            LEFT JOIN exam_blueprints b ON e.blueprint_id = b.id
+            {where_clause}
+            ORDER BY e.id DESC
+        """)
+        results = self.db.execute(query, params).mappings().all()
+        return [dict(row) for row in results]
+
+    def delete_exam(self, exam_id: int):
+        success = self.repo.delete_exam(exam_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Exam not found")
+        return {"message": "Exam deleted successfully"}
 
     def get_exam_by_id(self, exam_id: int):
         exam = self.repo.get_exam_by_id(exam_id)
+        if not exam:
+            raise HTTPException(status_code=404, detail="Exam not found")
+        return exam
+
+    def update_exam(self, exam_id: int, exam_update: ExamUpdate):
+        exam = self.repo.update_exam(exam_id, exam_update)
         if not exam:
             raise HTTPException(status_code=404, detail="Exam not found")
         return exam
@@ -159,7 +186,7 @@ class ExamService:
         if blueprint.status != "validated":
             raise HTTPException(status_code=400, detail="Blueprint must be validated before generation")
 
-        selected_question_ids = []
+        selected_questions_info = []
 
         # Iterate over blueprint items and pick random questions matching the requirements
         for item in blueprint.items:
@@ -197,13 +224,13 @@ class ExamService:
                             detail=f"Not enough {difficulty} questions for LO {item.learning_outcome_id}",
                         )
 
-                    selected_question_ids.extend([row[0] for row in results])
+                    selected_questions_info.extend([{"question_id": row[0], "criteria_id": item.id} for row in results])
 
         # Save the selected questions to exam_questions
-        self.repo.add_exam_questions(exam_id, selected_question_ids)
+        self.repo.add_exam_questions(exam_id, selected_questions_info)
 
         # Update exam status and total questions
-        updated_exam = self.repo.update_exam_status(exam_id, "generated", len(selected_question_ids))
+        updated_exam = self.repo.update_exam_status(exam_id, "draft", len(selected_questions_info))
         return updated_exam
 
     def get_exam_preview(self, exam_id: int) -> ExamPreviewData:
@@ -224,7 +251,7 @@ class ExamService:
                 eq.id as eq_id, eq.question_id, eq.order_index,
                 q.question_text as text, q.question_type as type, q.difficulty,
                 lo.code as lo_code,
-                q.options, q.correct_answer, q.suggested_answer, q.grading_rubric
+                q.options, q.correct_answer, q.suggested_answer, q.grading_rubric, q.explanation
             FROM exam_questions eq
             JOIN questions q ON eq.question_id = q.id
             LEFT JOIN learning_outcomes lo ON q.learning_outcome_id = lo.id
@@ -264,6 +291,7 @@ class ExamService:
                     correct_answer=row.correct_answer,
                     sample_answer=row.suggested_answer,
                     rubric=row.grading_rubric,
+                    explanation=row.explanation,
                 )
             )
 
@@ -273,6 +301,7 @@ class ExamService:
             course_name=course_name,
             duration_minutes=exam.duration_minutes,
             total_questions=exam.total_questions,
+            status=exam.status,
             questions=questions,
         )
 
@@ -281,7 +310,7 @@ class ExamService:
 
         # 1. Find the existing exam_question to know what to replace
         eq_query = text(
-            "SELECT id, question_id, order_index FROM exam_questions "
+            "SELECT id, question_id, order_index, criteria_id FROM exam_questions "
             "WHERE exam_id = :exam_id AND question_id = :question_id"
         )
         eq_row = self.db.execute(eq_query, {"exam_id": exam_id, "question_id": question_id}).fetchone()
@@ -289,19 +318,24 @@ class ExamService:
         if not eq_row:
             raise HTTPException(status_code=404, detail="Question not found in this exam")
 
-        eq_id, current_q_id, _order_idx = eq_row
+        eq_id, current_q_id, _order_idx, criteria_id = eq_row
 
-        # 2. Get properties of the current question
+        if not criteria_id:
+            raise HTTPException(status_code=400, detail="Question cannot be swapped because it has no criteria_id")
+
+        # 2. Get properties from the current question instead of blueprint criteria directly
+        # because exam_blueprint_items doesn't store difficulty directly for a specific question slot.
         q_query = text("SELECT learning_outcome_id, question_type, difficulty FROM questions WHERE id = :q_id")
-        q_row = self.db.execute(q_query, {"q_id": current_q_id}).fetchone()
-        if not q_row:
-            raise HTTPException(status_code=404, detail="Original question metadata not found")
+        c_row = self.db.execute(q_query, {"q_id": current_q_id}).fetchone()
+        if not c_row:
+            raise HTTPException(status_code=404, detail="Original question properties not found")
 
-        lo_id, q_type, difficulty = q_row
+        lo_id, q_type, difficulty = c_row
 
         # 3. Find all existing question IDs in this exam to avoid duplicates
         existing_qs_query = text("SELECT question_id FROM exam_questions WHERE exam_id = :exam_id")
         existing_qs = [r[0] for r in self.db.execute(existing_qs_query, {"exam_id": exam_id}).fetchall()]
+        existing_qs_tuple = tuple(existing_qs) if existing_qs else (-1,)
 
         # 4. Find an alternative question matching the exact criteria
         alt_query = text("""
@@ -311,7 +345,7 @@ class ExamService:
               AND question_type = :q_type
               AND difficulty = :difficulty
               AND status = 'approved'
-              AND id != ALL(:existing_qs)
+              AND id NOT IN :existing_qs
             ORDER BY RANDOM()
             LIMIT 1
         """)
@@ -321,11 +355,11 @@ class ExamService:
             "lo_id": lo_id,
             "q_type": q_type,
             "difficulty": difficulty,
-            "existing_qs": existing_qs
+            "existing_qs": existing_qs_tuple
         }).fetchone()
 
         if not alt_row:
-            raise HTTPException(status_code=400, detail="No alternative question available matching these criteria")
+            raise HTTPException(status_code=400, detail="Không còn câu hỏi tương tự trong Ngân hàng đề đáp ứng điều kiện. Vui lòng bổ sung thêm câu hỏi mới.")
 
         new_q_id = alt_row[0]
 
@@ -335,3 +369,32 @@ class ExamService:
         self.db.commit()
 
         return {"message": "Question swapped successfully", "new_question_id": new_q_id}
+
+    def reorder_exam(self, exam_id: int, items: list[dict]):
+        self.get_exam_by_id(exam_id)
+
+        # Build cases for bulk update
+        when_cases = []
+        item_ids = []
+        for item in items:
+            when_cases.append(f"WHEN id = {item['id']} THEN {item['order_index']}")
+            item_ids.append(item['id'])
+
+        if not item_ids:
+            return {"message": "No items to reorder"}
+
+        ids_str = ",".join(map(str, item_ids))
+        when_str = " ".join(when_cases)
+
+        query = text(f"""
+            UPDATE exam_questions
+            SET order_index = CASE
+                {when_str}
+            END
+            WHERE id IN ({ids_str}) AND exam_id = :exam_id
+        """)
+
+        self.db.execute(query, {"exam_id": exam_id})
+        self.db.commit()
+
+        return {"message": "Exam reordered successfully"}
