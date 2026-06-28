@@ -1,5 +1,6 @@
-import { Outlet, Link, useLocation } from 'react-router';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
   BookOpen,
@@ -22,11 +23,12 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  LogOut,
 } from 'lucide-react';
 import { useState } from 'react';
 
 const navItems = [
-  { path: '/', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
+  { path: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
   { path: '/courses', icon: BookOpen, labelKey: 'nav.courses' },
   { path: '/learning-outcomes', icon: Target, labelKey: 'nav.learningOutcomes' },
   { path: '/exam-blueprint', icon: Grid3x3, labelKey: 'nav.examBlueprint' },
@@ -39,10 +41,18 @@ const navItems = [
 
 export function Layout() {
   const { theme, toggleTheme, language, setLanguage, t } = useApp();
+  const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLangDropdown, setShowLangDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+
+  function handleLogout() {
+    logout();
+    setShowUserDropdown(false);
+    navigate('/login', { replace: true });
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -177,7 +187,11 @@ export function Layout() {
                   </div>
                 </button>
                 {showUserDropdown && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden">
+                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{user?.full_name || 'User'}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
+                    </div>
                     <button className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-2">
                       <User className="w-4 h-4" />
                       {t('common.profile')}
@@ -187,7 +201,11 @@ export function Layout() {
                       {t('common.settings')}
                     </button>
                     <div className="border-t border-gray-200 dark:border-gray-700"></div>
-                    <button className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 text-red-600 dark:text-red-400">
+                    <button
+                      onClick={handleLogout}
+                      className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 text-red-600 dark:text-red-400 flex items-center gap-2"
+                    >
+                      <LogOut className="w-4 h-4" />
                       {t('common.logout')}
                     </button>
                   </div>

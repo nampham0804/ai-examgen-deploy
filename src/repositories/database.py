@@ -35,10 +35,18 @@ def get_db() -> Generator[Session, None, None]:
 
 def init_db() -> None:
     from src.models import course, document, document_chunk, exam, learning_outcome, question, user  # noqa: F401
+    from src.security import hash_password
 
     Base.metadata.create_all(bind=engine)
 
     with SessionLocal() as db:
         if db.get(user.User, 1) is None:
-            db.add(user.User(id=1, email="lecturer@demo.com", full_name="Demo Lecturer"))
+            db.add(
+                user.User(
+                    id=1,
+                    email="lecturer@demo.com",
+                    full_name="Demo Lecturer",
+                    hashed_password=hash_password("Demo123456"),
+                )
+            )
             db.commit()
