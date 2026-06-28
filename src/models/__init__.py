@@ -4,6 +4,7 @@ from src.models.document_chunk import DocumentChunk
 from src.models.exam import Exam, ExamBlueprint, ExamBlueprintItem, ExamQuestion
 from src.models.learning_outcome import LearningOutcome
 from src.models.question import Question
+from src.models.user import User
 
 __all__ = [
     "Course",
@@ -15,4 +16,5 @@ __all__ = [
     "ExamQuestion",
     "LearningOutcome",
     "Question",
+    "User",
 ]
