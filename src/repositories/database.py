@@ -34,10 +34,8 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    from src.models import course, document, document_chunk, exam, learning_outcome, question, user  # noqa: F401
+    from src.models import user
     from src.security import hash_password
-
-    Base.metadata.create_all(bind=engine)
 
     with SessionLocal() as db:
         if db.get(user.User, 1) is None:

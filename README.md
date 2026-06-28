@@ -54,6 +54,18 @@ C2-App-141/
 `-- scripts/                  # Setup and AI logging scripts
 ```
 
+## Database Migrations
+
+Database schema is managed by Alembic. Backend startup does not create tables automatically.
+
+Before running the backend on a new database, run:
+
+```bash
+python -m alembic upgrade head
+```
+
+See `docs/database_migration_guide.md` for local and deploy migration workflow.
+
 ## 🚀 Setup Instructions
 
 Dự án bao gồm 2 phần chính: Backend (FastAPI) và Frontend (React/Vite).
@@ -81,6 +93,9 @@ source .venv/bin/activate  # Trên Windows dùng: .venv\Scripts\activate
 
 # Cài đặt thư viện
 pip install -r requirements.txt
+
+# Apply database migrations
+python -m alembic upgrade head
 
 # Khởi chạy Backend
 uvicorn src.main:app --reload --port 8000
