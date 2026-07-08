@@ -12,6 +12,10 @@ export interface Question {
   id: number;
   course_id: number;
   learning_outcome_id: number;
+  course_code?: string | null;
+  course_name?: string | null;
+  learning_outcome_code?: string | null;
+  learning_outcome_description?: string | null;
   document_id?: number | null;
   question_type: QuestionType;
   question_text: string;

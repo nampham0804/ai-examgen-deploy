@@ -169,6 +169,10 @@ async def test_question_bank_filters_approved_questions(client):
     assert data["items"][0]["question_text"] == approved_medium["question_text"]
     assert data["items"][0]["status"] == "approved"
     assert data["items"][0]["learning_outcome_id"] == lo_one["id"]
+    assert data["items"][0]["course_code"] == course["code"]
+    assert data["items"][0]["course_name"] == course["name"]
+    assert data["items"][0]["learning_outcome_code"] == lo_one["code"]
+    assert data["items"][0]["learning_outcome_description"] == lo_one["description"]
 
 
 @pytest.mark.asyncio
