@@ -54,6 +54,7 @@ def generate_questions_from_chunks(
     topic: str | None = None,
     top_k: int = DEFAULT_TOP_K,
     diversity_mode: bool = True,
+    user_id: int,
 ) -> dict:
     _validate_generation_request(question_type, difficulty)
     requested_count = min(max(num_questions, 1), MAX_NUM_QUESTIONS)
@@ -62,10 +63,10 @@ def generate_questions_from_chunks(
     primary_document_id = selected_document_ids[0]
 
     learning_outcome = get_learning_outcome(db, learning_outcome_id)
-    if learning_outcome is None:
+    if learning_outcome is None or learning_outcome.course.owner_id != user_id:
         raise AIGenerationError("Learning outcome not found", status_code=404, error="Not found")
 
-    documents = _get_generation_documents(db, selected_document_ids, learning_outcome.course_id)
+    documents = _get_generation_documents(db, selected_document_ids, learning_outcome.course_id, user_id)
     primary_document = documents[0]
     retrieval = _retrieve_chunks_for_documents(
         db,
@@ -211,7 +212,7 @@ def generate_questions_from_chunks(
                 "difficulty": difficulty,
                 "status": "pending_review",
                 "created_by_ai": True,
-                "created_by": None,
+                "created_by": user_id,
                 "generation_topic": topic,
             }
             for question in parsed_questions
@@ -267,11 +268,11 @@ def _normalize_document_ids(document_id: int | None, document_ids: list[int] | N
     return normalized
 
 
-def _get_generation_documents(db: Session, document_ids: list[int], course_id: int) -> list:
+def _get_generation_documents(db: Session, document_ids: list[int], course_id: int, user_id: int) -> list:
     documents = []
     for selected_document_id in document_ids:
         document = get_document(db, selected_document_id)
-        if document is None:
+        if document is None or document.uploaded_by != user_id:
             raise AIGenerationError("Document not found", status_code=404, error="Not found")
         if document.status != "processed":
             raise AIGenerationError("Document must be processed before question generation")
