@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
 from src.repositories.database import Base
@@ -62,9 +62,18 @@ class ExamQuestion(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     exam_id = Column(Integer, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
-    question_id = Column(Integer, ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
+    question_id = Column(Integer, ForeignKey("questions.id", ondelete="SET NULL"), nullable=True)
     criteria_id = Column(Integer, ForeignKey("exam_blueprint_items.id", ondelete="SET NULL"), nullable=True)
     order_index = Column(Integer, default=0)
+    snapshot_question_text = Column(Text, nullable=True)
+    snapshot_question_type = Column(String(50), nullable=True)
+    snapshot_difficulty = Column(String(50), nullable=True)
+    snapshot_learning_outcome_code = Column(String(100), nullable=True)
+    snapshot_options = Column(Text, nullable=True)
+    snapshot_correct_answer = Column(Text, nullable=True)
+    snapshot_suggested_answer = Column(Text, nullable=True)
+    snapshot_grading_rubric = Column(Text, nullable=True)
+    snapshot_explanation = Column(Text, nullable=True)
 
     exam = relationship("Exam", back_populates="questions")
     question = relationship("Question")

@@ -14,6 +14,38 @@ class ExamService:
         self.db = db
         self.repo = ExamRepository(db)
 
+    def _serialize_options(self, options):
+        if options is None:
+            return None
+        if isinstance(options, str):
+            return options
+        return json.dumps(options, ensure_ascii=False)
+
+    def _parse_options(self, options):
+        if not options:
+            return None
+        try:
+            parsed_options = json.loads(options) if isinstance(options, str) else options
+        except Exception:
+            parsed_options = []
+        if parsed_options and isinstance(parsed_options[0], dict):
+            return [option.get("text", "") for option in parsed_options]
+        return parsed_options
+
+    def _snapshot_from_question_row(self, row):
+        return {
+            "question_id": row.id,
+            "snapshot_question_text": row.question_text,
+            "snapshot_question_type": row.question_type,
+            "snapshot_difficulty": row.difficulty,
+            "snapshot_learning_outcome_code": row.learning_outcome_code,
+            "snapshot_options": self._serialize_options(row.options),
+            "snapshot_correct_answer": row.correct_answer,
+            "snapshot_suggested_answer": row.suggested_answer,
+            "snapshot_grading_rubric": row.grading_rubric,
+            "snapshot_explanation": row.explanation,
+        }
+
     def create_blueprint(self, blueprint_in: BlueprintCreate):
         total_questions = sum(
             item.easy_count + item.medium_count + item.hard_count
@@ -139,6 +171,10 @@ class ExamService:
 
     # Exam methods
     def create_exam(self, exam_in: ExamCreate):
+        if not exam_in.title.strip():
+            raise HTTPException(status_code=422, detail="Exam title is required")
+        if exam_in.duration_minutes <= 0:
+            raise HTTPException(status_code=422, detail="Exam duration must be greater than 0")
         return self.repo.create_exam(exam_in)
 
     def get_exams_by_course(self, course_id: int):
@@ -172,6 +208,16 @@ class ExamService:
         return exam
 
     def update_exam(self, exam_id: int, exam_update: ExamUpdate):
+        current_exam = self.get_exam_by_id(exam_id)
+        if current_exam.status == "approved":
+            changes = exam_update.model_dump(exclude_unset=True)
+            allowed_noop_status = set(changes) == {"status"} and changes.get("status") == "approved"
+            if changes and not allowed_noop_status:
+                raise HTTPException(status_code=400, detail="Approved exams cannot be modified")
+        if exam_update.title is not None and not exam_update.title.strip():
+            raise HTTPException(status_code=422, detail="Exam title is required")
+        if exam_update.duration_minutes is not None and exam_update.duration_minutes <= 0:
+            raise HTTPException(status_code=422, detail="Exam duration must be greater than 0")
         exam = self.repo.update_exam(exam_id, exam_update)
         if not exam:
             raise HTTPException(status_code=404, detail="Exam not found")
@@ -197,12 +243,24 @@ class ExamService:
             ]:
                 if count > 0:
                     query = text("""
-                        SELECT id FROM questions
-                        WHERE course_id = :course_id
-                          AND learning_outcome_id = :lo_id
-                          AND question_type = :q_type
-                          AND difficulty = :difficulty
-                          AND status = 'approved'
+                        SELECT
+                            q.id,
+                            q.question_text,
+                            q.question_type,
+                            q.difficulty,
+                            q.options,
+                            q.correct_answer,
+                            q.suggested_answer,
+                            q.grading_rubric,
+                            q.explanation,
+                            lo.code as learning_outcome_code
+                        FROM questions q
+                        LEFT JOIN learning_outcomes lo ON q.learning_outcome_id = lo.id
+                        WHERE q.course_id = :course_id
+                          AND q.learning_outcome_id = :lo_id
+                          AND q.question_type = :q_type
+                          AND q.difficulty = :difficulty
+                          AND q.status = 'approved'
                         ORDER BY RANDOM()
                         LIMIT :limit
                     """)
@@ -224,7 +282,10 @@ class ExamService:
                             detail=f"Not enough {difficulty} questions for LO {item.learning_outcome_id}",
                         )
 
-                    selected_questions_info.extend([{"question_id": row[0], "criteria_id": item.id} for row in results])
+                    for row in results:
+                        selected_questions_info.append(
+                            {**self._snapshot_from_question_row(row), "criteria_id": item.id}
+                        )
 
         # Save the selected questions to exam_questions
         self.repo.add_exam_questions(exam_id, selected_questions_info)
@@ -249,11 +310,18 @@ class ExamService:
         query = text("""
             SELECT
                 eq.id as eq_id, eq.question_id, eq.order_index,
-                q.question_text as text, q.question_type as type, q.difficulty,
+                COALESCE(eq.snapshot_question_text, q.question_text) as text,
+                COALESCE(eq.snapshot_question_type, q.question_type) as type,
+                COALESCE(eq.snapshot_difficulty, q.difficulty) as difficulty,
                 lo.code as lo_code,
-                q.options, q.correct_answer, q.suggested_answer, q.grading_rubric, q.explanation
+                COALESCE(eq.snapshot_learning_outcome_code, lo.code) as snapshot_lo_code,
+                COALESCE(eq.snapshot_options, CAST(q.options AS TEXT)) as options,
+                COALESCE(eq.snapshot_correct_answer, q.correct_answer) as correct_answer,
+                COALESCE(eq.snapshot_suggested_answer, q.suggested_answer) as suggested_answer,
+                COALESCE(eq.snapshot_grading_rubric, q.grading_rubric) as grading_rubric,
+                COALESCE(eq.snapshot_explanation, q.explanation) as explanation
             FROM exam_questions eq
-            JOIN questions q ON eq.question_id = q.id
+            LEFT JOIN questions q ON eq.question_id = q.id
             LEFT JOIN learning_outcomes lo ON q.learning_outcome_id = lo.id
             WHERE eq.exam_id = :exam_id
             ORDER BY eq.order_index ASC
@@ -267,16 +335,6 @@ class ExamService:
 
         questions = []
         for row in results:
-            # Attempt to parse options if it's stored as JSON string
-            options = None
-            if row.options:
-                try:
-                    options = json.loads(row.options) if isinstance(row.options, str) else row.options
-                except Exception:
-                    options = []
-                if options and isinstance(options[0], dict):
-                    options = [option.get("text", "") for option in options]
-
             questions.append(
                 ExamPreviewQuestion(
                     id=row.eq_id,
@@ -286,8 +344,8 @@ class ExamService:
                     text=row.text or "Question text unavailable",
                     type=row.type,
                     difficulty=row.difficulty,
-                    learning_outcome_code=row.lo_code or "LO",
-                    options=options,
+                    learning_outcome_code=row.snapshot_lo_code or row.lo_code or "LO",
+                    options=self._parse_options(row.options),
                     correct_answer=row.correct_answer,
                     sample_answer=row.suggested_answer,
                     rubric=row.grading_rubric,
@@ -307,6 +365,8 @@ class ExamService:
 
     def swap_exam_question(self, exam_id: int, question_id: int):
         exam = self.get_exam_by_id(exam_id)
+        if exam.status == "approved":
+            raise HTTPException(status_code=400, detail="Approved exams cannot be modified")
 
         # 1. Find the existing exam_question to know what to replace
         eq_query = text(
@@ -339,13 +399,25 @@ class ExamService:
 
         # 4. Find an alternative question matching the exact criteria
         alt_query = text("""
-            SELECT id FROM questions
-            WHERE course_id = :course_id
-              AND learning_outcome_id = :lo_id
-              AND question_type = :q_type
-              AND difficulty = :difficulty
-              AND status = 'approved'
-              AND id NOT IN :existing_qs
+            SELECT
+                q.id,
+                q.question_text,
+                q.question_type,
+                q.difficulty,
+                q.options,
+                q.correct_answer,
+                q.suggested_answer,
+                q.grading_rubric,
+                q.explanation,
+                lo.code as learning_outcome_code
+            FROM questions q
+            LEFT JOIN learning_outcomes lo ON q.learning_outcome_id = lo.id
+            WHERE q.course_id = :course_id
+              AND q.learning_outcome_id = :lo_id
+              AND q.question_type = :q_type
+              AND q.difficulty = :difficulty
+              AND q.status = 'approved'
+              AND q.id NOT IN :existing_qs
             ORDER BY RANDOM()
             LIMIT 1
         """)
@@ -361,17 +433,32 @@ class ExamService:
         if not alt_row:
             raise HTTPException(status_code=400, detail="Không còn câu hỏi tương tự trong Ngân hàng đề đáp ứng điều kiện. Vui lòng bổ sung thêm câu hỏi mới.")
 
-        new_q_id = alt_row[0]
+        snapshot = self._snapshot_from_question_row(alt_row)
 
         # 5. Update exam_questions with the new question ID
-        update_query = text("UPDATE exam_questions SET question_id = :new_q_id WHERE id = :eq_id")
-        self.db.execute(update_query, {"new_q_id": new_q_id, "eq_id": eq_id})
+        update_query = text("""
+            UPDATE exam_questions
+            SET question_id = :question_id,
+                snapshot_question_text = :snapshot_question_text,
+                snapshot_question_type = :snapshot_question_type,
+                snapshot_difficulty = :snapshot_difficulty,
+                snapshot_learning_outcome_code = :snapshot_learning_outcome_code,
+                snapshot_options = :snapshot_options,
+                snapshot_correct_answer = :snapshot_correct_answer,
+                snapshot_suggested_answer = :snapshot_suggested_answer,
+                snapshot_grading_rubric = :snapshot_grading_rubric,
+                snapshot_explanation = :snapshot_explanation
+            WHERE id = :eq_id
+        """)
+        self.db.execute(update_query, {**snapshot, "eq_id": eq_id})
         self.db.commit()
 
-        return {"message": "Question swapped successfully", "new_question_id": new_q_id}
+        return {"message": "Question swapped successfully", "new_question_id": snapshot["question_id"]}
 
     def reorder_exam(self, exam_id: int, items: list[dict]):
-        self.get_exam_by_id(exam_id)
+        exam = self.get_exam_by_id(exam_id)
+        if exam.status == "approved":
+            raise HTTPException(status_code=400, detail="Approved exams cannot be reordered")
 
         # Build cases for bulk update
         when_cases = []

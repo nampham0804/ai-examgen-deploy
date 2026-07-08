@@ -143,7 +143,16 @@ class ExamRepository:
                 exam_id=exam_id,
                 question_id=info["question_id"],
                 criteria_id=info.get("criteria_id"),
-                order_index=idx
+                order_index=idx,
+                snapshot_question_text=info.get("snapshot_question_text"),
+                snapshot_question_type=info.get("snapshot_question_type"),
+                snapshot_difficulty=info.get("snapshot_difficulty"),
+                snapshot_learning_outcome_code=info.get("snapshot_learning_outcome_code"),
+                snapshot_options=info.get("snapshot_options"),
+                snapshot_correct_answer=info.get("snapshot_correct_answer"),
+                snapshot_suggested_answer=info.get("snapshot_suggested_answer"),
+                snapshot_grading_rubric=info.get("snapshot_grading_rubric"),
+                snapshot_explanation=info.get("snapshot_explanation"),
             )
             self.db.add(db_eq)
         self.db.commit()
