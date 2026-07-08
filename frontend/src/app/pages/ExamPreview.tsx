@@ -3,11 +3,14 @@ import { useParams, useNavigate } from 'react-router';
 import { Button } from '../components/ui/button';
 import { examApi } from '../../api/exams';
 import { ExamPreviewData, ExamPreviewQuestion } from '../../types/exam';
-import { RefreshCw, Download, Loader2, Edit, CheckCircle, AlertCircle, FileDown, ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
+import { RefreshCw, Download, Loader2, Edit, CheckCircle, AlertCircle, ArrowUp, ArrowDown, GripVertical, Lock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '../components/ui/dialog';
 import { Alert, AlertTitle, AlertDescription } from '../components/ui/alert';
+import { useApp } from '../context/AppContext';
+import { getDifficultyLabel, getExamStatusClass, getExamStatusLabel, getQuestionTypeLabel, isApprovedExam } from '../utils/examStatus';
 
 export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: number; onSaved?: () => void; hideExport?: boolean }) {
+  const { t } = useApp();
   const params = useParams();
   const idStr = params.id;
   const id = examId || (idStr ? parseInt(idStr) : null);
@@ -16,6 +19,7 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
   const [loading, setLoading] = useState(true);
   const [swappingId, setSwappingId] = useState<number | null>(null);
   const [actionAlert, setActionAlert] = useState<{type: 'success' | 'error', message: string} | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState('gift');
@@ -23,6 +27,9 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
   // Edit State
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ title: '', duration: 60 });
+  const [isSavingDetails, setIsSavingDetails] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [approveConfirmOpen, setApproveConfirmOpen] = useState(false);
 
   // Reorder State
   const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
@@ -32,12 +39,13 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
     if (!id) return;
     try {
       setLoading(true);
+      setLoadError(null);
       const res = await examApi.getExamPreview(id);
       setData(res.data);
       setEditForm({ title: res.data.title, duration: res.data.duration_minutes });
     } catch (e) {
       console.error(e);
-      alert("Failed to load exam preview");
+      setLoadError("Không tải được đề thi. Vui lòng thử lại.");
     } finally {
       setLoading(false);
     }
@@ -47,8 +55,8 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
     fetchPreview();
   }, [id]);
 
-  const handleSwap = async (questionId: number) => {
-    if (!id) return;
+  const handleSwap = async (questionId: number | null) => {
+    if (!id || !questionId || !data || isApprovedExam(data.status as any)) return;
     try {
       setSwappingId(questionId);
       // Calls the swap API. Since backend currently returns new ID, we refetch whole preview to get the full detailed question.
@@ -57,7 +65,7 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
       await fetchPreview(); 
     } catch (e: any) {
       console.error(e);
-      const errMsg = e.response?.data?.detail || e.message || "Không còn câu hỏi tương tự trong Ngân hàng đề đáp ứng điều kiện. Vui lòng bổ sung thêm câu hỏi mới.";
+      const errMsg = e.response?.data?.detail || e.message || "Không còn câu hỏi thay thế cùng CDR, loại câu và độ khó.";
       setActionAlert({ type: 'error', message: errMsg });
       setTimeout(() => setActionAlert(null), 5000);
     } finally {
@@ -67,6 +75,7 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
 
   const handleReorder = async (fromIndex: number, toIndex: number) => {
     if (!data || !id) return;
+    if (isApprovedExam(data.status as any)) return;
     if (fromIndex < 0 || toIndex < 0 || fromIndex >= data.questions.length || toIndex >= data.questions.length) return;
     if (fromIndex === toIndex) return;
 
@@ -87,7 +96,7 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
       await examApi.reorderExam(id, items);
     } catch (e: any) {
       console.error(e);
-      alert(e.message || "Failed to reorder questions.");
+      setActionAlert({ type: 'error', message: e.message || "Không thể sắp xếp lại câu hỏi. Thứ tự đã được khôi phục." });
       // Rollback on fail
       await fetchPreview();
     } finally {
@@ -113,11 +122,33 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
     setDraggedItemIndex(null);
   };
 
-  const handleSaveDetails = () => {
-    if (!data) return;
-    setData({ ...data, title: editForm.title, duration_minutes: editForm.duration });
-    setIsEditing(false);
-    // In a real app, this would call an API to update the exam metadata
+  const handleSaveDetails = async () => {
+    if (!data || !id || isApprovedExam(data.status as any)) return;
+    if (!editForm.title.trim()) {
+      setEditError("Vui lòng nhập tên đề thi.");
+      return;
+    }
+    if (!editForm.duration || editForm.duration <= 0) {
+      setEditError("Thời lượng làm bài phải lớn hơn 0.");
+      return;
+    }
+
+    try {
+      setIsSavingDetails(true);
+      setEditError(null);
+      await examApi.updateExam(id, {
+        title: editForm.title.trim(),
+        duration_minutes: editForm.duration,
+      });
+      await fetchPreview();
+      setIsEditing(false);
+      setActionAlert({ type: 'success', message: "Đã cập nhật thông tin đề thi." });
+    } catch (e: any) {
+      console.error(e);
+      setEditError(e.message || "Không thể cập nhật thông tin đề thi.");
+    } finally {
+      setIsSavingDetails(false);
+    }
   };
 
   const handleExportSubmit = async () => {
@@ -148,20 +179,12 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
     if (!id || !data) return;
     try {
       await examApi.updateExam(id, { 
-        title: data.title,
-        duration_minutes: data.duration_minutes,
         status: 'approved' 
       });
-      setData({ ...data, status: 'approved' });
-      setActionAlert({ type: 'success', message: t('exam.savedSuccess') });
-      // After 2 seconds, call onSaved to reset parent or navigate
-      setTimeout(() => {
-        if (onSaved) {
-          onSaved();
-        } else {
-          navigate('/exam-list');
-        }
-      }, 2000);
+      await fetchPreview();
+      setApproveConfirmOpen(false);
+      setActionAlert({ type: 'success', message: "Đã duyệt đề thi. Nội dung đã được khóa và có thể export." });
+      if (onSaved) onSaved();
     } catch (e) {
       console.error(e);
       setActionAlert({ type: 'error', message: t('exam.saveError') });
@@ -170,6 +193,7 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
 
   const handleSaveDraft = async () => {
     if (!id || !data) return;
+    if (isApprovedExam(data.status as any)) return;
     try {
       await examApi.updateExam(id, { 
         title: data.title, 
@@ -193,8 +217,10 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
   }
 
   if (!data) {
-    return <div className="p-6 text-center text-red-500">Exam not found or failed to load.</div>;
+    return <div className="p-6 text-center text-red-500">{loadError || "Không tìm thấy đề thi."}</div>;
   }
+
+  const approved = isApprovedExam(data.status as any);
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -202,6 +228,10 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold text-gray-900">{data.title}</h1>
+            <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${getExamStatusClass(data.status as any)}`}>
+              {getExamStatusLabel(data.status as any)}
+            </span>
+            {!approved && (
             <Dialog open={isEditing} onOpenChange={setIsEditing}>
               <DialogTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
@@ -210,11 +240,18 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
               </DialogTrigger>
               <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                  <DialogTitle>Edit Exam Details</DialogTitle>
+                  <DialogTitle>Sửa thông tin đề thi</DialogTitle>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
+                  {editError && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="w-4 h-4" />
+                      <AlertTitle>Lỗi</AlertTitle>
+                      <AlertDescription>{editError}</AlertDescription>
+                    </Alert>
+                  )}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Exam Title</label>
+                    <label className="text-sm font-medium">Tên đề thi</label>
                     <input 
                       className="w-full border rounded-md px-3 py-2 text-sm"
                       value={editForm.title}
@@ -222,9 +259,10 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Duration (minutes)</label>
+                    <label className="text-sm font-medium">Thời lượng làm bài (phút)</label>
                     <input 
                       type="number"
+                      min="1"
                       className="w-full border rounded-md px-3 py-2 text-sm"
                       value={editForm.duration}
                       onChange={(e) => setEditForm({...editForm, duration: parseInt(e.target.value)})}
@@ -232,22 +270,36 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
-                  <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleSaveDetails}>Save Changes</Button>
+                  <Button variant="outline" onClick={() => setIsEditing(false)} disabled={isSavingDetails}>Hủy</Button>
+                  <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleSaveDetails} disabled={isSavingDetails}>
+                    {isSavingDetails ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    Lưu thay đổi
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            )}
           </div>
-          <p className="text-gray-500 mt-1">Course: {data.course_name} • Duration: {data.duration_minutes} mins • {data.total_questions} Questions</p>
+          <p className="text-gray-500 mt-1">Học phần: {data.course_name} • Thời lượng: {data.duration_minutes} phút • {data.total_questions} câu</p>
         </div>
         <div className="flex items-center gap-2">
           {!examId && (
             <Button variant="outline" onClick={() => navigate(-1)}>
-              Back
+              Quay lại
             </Button>
           )}
         </div>
       </div>
+
+      {approved && (
+        <Alert className="bg-emerald-50 border-emerald-200 text-emerald-800">
+          <Lock className="w-4 h-4 text-emerald-700" />
+          <AlertTitle>Đề thi đã được duyệt</AlertTitle>
+          <AlertDescription>
+            Nội dung đề thi đã được khóa để đảm bảo file export ổn định. Bạn có thể xem và xuất file, nhưng không thể đổi câu hỏi hoặc sắp xếp lại.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden ${isReordering ? 'opacity-70 pointer-events-none' : ''}`}>
         <div className="p-6 space-y-8">
@@ -255,7 +307,7 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
             <div 
               key={q.id} 
               className={`p-5 border rounded-lg bg-slate-50 relative group transition-all hover:border-blue-300 hover:shadow-md ${draggedItemIndex === index ? 'opacity-50 border-dashed border-blue-500' : ''}`}
-              draggable
+              draggable={!approved}
               onDragStart={(e) => handleDragStart(e, index)}
               onDragOver={(e) => handleDragOver(e, index)}
               onDrop={(e) => handleDrop(e, index)}
@@ -271,10 +323,10 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
                     q.difficulty === 'medium' ? 'bg-amber-100 text-amber-700' :
                     'bg-red-100 text-red-700'
                   }`}>
-                    {q.difficulty}
+                    {getDifficultyLabel(q.difficulty)}
                   </span>
                   <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
-                    {q.type}
+                    {getQuestionTypeLabel(q.type)}
                   </span>
                   <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
                     {q.learning_outcome_code}
@@ -287,8 +339,9 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
                       variant="ghost" 
                       size="icon" 
                       className="h-6 w-6 text-slate-400 hover:text-blue-600 disabled:opacity-30"
-                      disabled={index === 0}
+                      disabled={approved || index === 0}
                       onClick={() => handleReorder(index, index - 1)}
+                      title={approved ? "Đề thi đã duyệt không thể sắp xếp lại" : "Đưa câu hỏi lên trên"}
                     >
                       <ArrowUp className="w-4 h-4" />
                     </Button>
@@ -296,8 +349,9 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
                       variant="ghost" 
                       size="icon" 
                       className="h-6 w-6 text-slate-400 hover:text-blue-600 disabled:opacity-30"
-                      disabled={index === data.questions.length - 1}
+                      disabled={approved || index === data.questions.length - 1}
                       onClick={() => handleReorder(index, index + 1)}
+                      title={approved ? "Đề thi đã duyệt không thể sắp xếp lại" : "Đưa câu hỏi xuống dưới"}
                     >
                       <ArrowDown className="w-4 h-4" />
                     </Button>
@@ -307,7 +361,8 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
                     size="sm" 
                     className="text-slate-600 hover:text-blue-600 flex items-center gap-2"
                     onClick={() => handleSwap(q.question_id)}
-                    disabled={swappingId === q.question_id}
+                    disabled={approved || !q.question_id || swappingId === q.question_id}
+                    title={approved ? "Đề thi đã duyệt không thể đổi câu hỏi" : "Đổi sang câu hỏi khác cùng tiêu chí"}
                   >
                     {swappingId === q.question_id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                     Đổi câu hỏi
@@ -386,20 +441,47 @@ export default function ExamPreview({ examId, onSaved, hideExport }: { examId?: 
           )}
           <div className="flex justify-end gap-3">
             {!hideExport && (
-              <Button variant="outline" className="flex items-center gap-2" onClick={() => setExportModalOpen(true)} disabled={isExporting || data.status !== 'approved'}>
+              <Button
+                variant="outline"
+                className="flex items-center gap-2"
+                onClick={() => setExportModalOpen(true)}
+                disabled={isExporting || data.status !== 'approved'}
+                title={data.status !== 'approved' ? "Cần duyệt đề thi trước khi export" : "Xuất file đề thi"}
+              >
                 {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                Export File
+                Xuất file
               </Button>
             )}
-            <Button variant="outline" className="flex items-center gap-2 text-slate-700" onClick={handleSaveDraft}>
+            <Button variant="outline" className="flex items-center gap-2 text-slate-700" onClick={handleSaveDraft} disabled={approved}>
               Lưu bản nháp
             </Button>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2" onClick={handleConfirmSave}>
-              <CheckCircle className="w-4 h-4" /> Confirm & Save
-            </Button>
+            {!approved && (
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2" onClick={() => setApproveConfirmOpen(true)}>
+                <CheckCircle className="w-4 h-4" /> Lưu và duyệt đề thi
+              </Button>
+            )}
           </div>
         </div>
       </div>
+
+      <Dialog open={approveConfirmOpen} onOpenChange={setApproveConfirmOpen}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle>Duyệt đề thi này?</DialogTitle>
+          </DialogHeader>
+          <div className="py-3 text-sm text-slate-600 space-y-2">
+            <p>Sau khi duyệt, đề thi sẽ được khóa nội dung để đảm bảo file export ổn định.</p>
+            <p>Bạn vẫn có thể xem và xuất file, nhưng không thể đổi câu hỏi hoặc sắp xếp lại đề thi đã duyệt.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApproveConfirmOpen(false)}>Kiểm tra lại</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleConfirmSave}>
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Duyệt đề thi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={exportModalOpen} onOpenChange={setExportModalOpen}>
         <DialogContent className="sm:max-w-[400px]">

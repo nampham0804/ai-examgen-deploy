@@ -8,12 +8,14 @@ import { Course } from '../../types/course';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/dialog';
 import { Button } from '../components/ui/button';
 import { useNavigate } from 'react-router';
-import { getQuestions } from '../../api/questions';
+import { formatValidationMissingDetail } from '../utils/examStatus';
 
 
 
 
 export type QuestionType = 'mcq' | 'essay';
+
+const BLUEPRINT_SELECTED_COURSE_KEY = 'exam_blueprint_selected_course_id';
 
 const QUESTION_TYPES: { value: QuestionType; labelKey: string }[] = [
   { value: 'mcq', labelKey: 'common.multipleChoice' },
@@ -141,8 +143,7 @@ export default function ExamBlueprint() {
 
   const [validationResult, setValidationResult] = useState<ValidationResultData | null>(null);
   const [showUnbalancedWarning, setShowUnbalancedWarning] = useState(false);
-  const [showMissingWarning, setShowMissingWarning] = useState(false);
-  const [missingDetails, setMissingDetails] = useState<string[]>([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const navigate = useNavigate();
 
@@ -152,7 +153,11 @@ export default function ExamBlueprint() {
         const fetchedCourses = await getCourses();
         setCourses(fetchedCourses);
         if (fetchedCourses.length > 0) {
-          setSelectedCourse(fetchedCourses[0].id);
+          const savedCourseId = Number(localStorage.getItem(BLUEPRINT_SELECTED_COURSE_KEY));
+          const courseToSelect = fetchedCourses.some(course => course.id === savedCourseId)
+            ? savedCourseId
+            : fetchedCourses[0].id;
+          setSelectedCourse(courseToSelect);
         }
       } catch (e) {
         console.error("Failed to load courses", e);
@@ -166,6 +171,11 @@ export default function ExamBlueprint() {
       loadCourseBlueprint(selectedCourse);
     }
   }, [selectedCourse]);
+
+  const handleSelectedCourseChange = (courseId: number) => {
+    localStorage.setItem(BLUEPRINT_SELECTED_COURSE_KEY, String(courseId));
+    setSelectedCourse(courseId);
+  };
 
   const loadCourseBlueprint = async (courseId: number) => {
     try {
@@ -224,6 +234,12 @@ export default function ExamBlueprint() {
     }
   };
 
+  const markMatrixChanged = () => {
+    setValidationResult(null);
+    setSaveStatus('idle');
+    setErrorMessage(null);
+  };
+
   const updateItemCount = (loId: number, type: QuestionType, difficulty: 'easy' | 'medium' | 'hard', value: number) => {
     setMatrix(prev => prev.map(row => {
       if (row.loId === loId) {
@@ -236,8 +252,7 @@ export default function ExamBlueprint() {
       }
       return row;
     }));
-    setSaveStatus('idle');
-    setErrorMessage(null);
+    markMatrixChanged();
   };
 
   const addQuestionType = (loId: number) => {
@@ -256,8 +271,7 @@ export default function ExamBlueprint() {
     }));
 
     setSelectedTypesToAdd(prev => ({ ...prev, [loId]: '' as any }));
-    setSaveStatus('idle');
-    setErrorMessage(null);
+    markMatrixChanged();
   };
 
   const removeQuestionType = (loId: number, type: QuestionType) => {
@@ -267,8 +281,7 @@ export default function ExamBlueprint() {
       }
       return row;
     }));
-    setSaveStatus('idle');
-    setErrorMessage(null);
+    markMatrixChanged();
   };
 
 
@@ -322,8 +335,7 @@ export default function ExamBlueprint() {
     });
 
     setMatrix(newMatrix);
-    setSaveStatus('idle');
-    setErrorMessage(null);
+    markMatrixChanged();
   };
 
 
@@ -367,95 +379,62 @@ export default function ExamBlueprint() {
     percentages.medium >= 30 && percentages.medium <= 50 &&
     percentages.hard >= 10 && percentages.hard <= 30;
 
+  const hasValidationResult = validationResult !== null;
+  const validationCardClass = !hasValidationResult
+    ? 'bg-blue-50 border-blue-200 text-blue-800'
+    : validationResult.is_valid
+      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+      : 'bg-amber-50 border-amber-200 text-amber-800';
+  const validationTitle = !hasValidationResult
+    ? 'Ma trận cần được lưu để kiểm tra'
+    : validationResult.is_valid
+      ? 'Ma trận sẵn sàng tạo đề'
+      : 'Ma trận chưa đủ điều kiện tạo đề';
+  const validationDescription = !hasValidationResult
+    ? `Ma trận hiện có ${grandTotal} câu. Hãy lưu để hệ thống kiểm tra với ngân hàng câu hỏi đã duyệt.`
+    : `Cần ${grandTotal} câu hỏi đã duyệt trong ngân hàng để có thể tạo đề.`;
+
   const handleSave = async () => {
     setErrorMessage(null);
     if (!isBalanced) {
       setShowUnbalancedWarning(true);
       return;
     }
-    await checkMissingQuestions();
+    await executeSave();
   };
 
   const handleUnbalancedProceed = async () => {
     setShowUnbalancedWarning(false);
-    await checkMissingQuestions();
-  };
-
-  const checkMissingQuestions = async () => {
-    if (selectedCourse === null) return;
-    try {
-      setIsSaving(true);
-      
-      let allQuestions: any[] = [];
-      let page = 1;
-      let hasMore = true;
-
-      while (hasMore) {
-        const res = await getQuestions({ course_id: selectedCourse, status: 'approved', page, page_size: 100 });
-        allQuestions = [...allQuestions, ...res.items];
-        if (allQuestions.length >= res.total || res.items.length === 0) {
-          hasMore = false;
-        } else {
-          page++;
-        }
-      }
-      
-      const availableQuestions = allQuestions;
-      let hasMissing = false;
-      const details: string[] = [];
-
-      matrix.forEach(row => {
-        row.items.forEach(item => {
-          if (item.easy > 0 || item.medium > 0 || item.hard > 0) {
-            const relevantQ = availableQuestions.filter(q => q.learning_outcome_id === row.loId && q.question_type === item.type);
-            const availEasy = relevantQ.filter(q => q.difficulty === 'easy').length;
-            const availMed = relevantQ.filter(q => q.difficulty === 'medium').length;
-            const availHard = relevantQ.filter(q => q.difficulty === 'hard').length;
-
-            if (item.easy > availEasy) details.push(`CLO ${row.loCode} (${item.type}): Thiếu ${item.easy - availEasy} câu Dễ`);
-            if (item.medium > availMed) details.push(`CLO ${row.loCode} (${item.type}): Thiếu ${item.medium - availMed} câu Trung bình`);
-            if (item.hard > availHard) details.push(`CLO ${row.loCode} (${item.type}): Thiếu ${item.hard - availHard} câu Khó`);
-
-            if (item.easy > availEasy || item.medium > availMed || item.hard > availHard) {
-              hasMissing = true;
-            }
-          }
-        });
-      });
-
-      setMissingDetails(details);
-      setIsSaving(false);
-      if (hasMissing) {
-        setShowMissingWarning(true);
-      } else {
-        await executeSave();
-      }
-    } catch (e) {
-      console.error(e);
-      setIsSaving(false);
-      await executeSave(); // fallback
-    }
+    await executeSave();
   };
 
   const executeSave = async () => {
     setShowUnbalancedWarning(false);
-    setShowMissingWarning(false);
     try {
       setIsSaving(true);
       setSaveStatus('idle');
 
       const items = constructItemsPayload();
 
+      let savedBlueprintId = blueprintId;
       if (blueprintId) {
-        await blueprintApi.updateBlueprint(blueprintId, { items });
+        const response = await blueprintApi.updateBlueprint(blueprintId, { items });
+        savedBlueprintId = response.data.id;
       } else {
         if (selectedCourse === null) return;
         const course = courses.find(c => c.id === selectedCourse);
-        await blueprintApi.createBlueprint({
+        const response = await blueprintApi.createBlueprint({
           course_id: selectedCourse,
           title: `Ma trận đề thi - ${course?.code || 'Course'}`,
           items: items
         });
+        savedBlueprintId = response.data.id;
+        setBlueprintId(savedBlueprintId);
+      }
+
+      if (savedBlueprintId) {
+        const validationRes = await blueprintApi.validateBlueprint(savedBlueprintId);
+        setValidationResult(validationRes.data);
       }
 
       // Reload to get actual DB IDs and standard state
@@ -474,15 +453,16 @@ export default function ExamBlueprint() {
 
   const handleDelete = async () => {
     if (!blueprintId) return;
-    if (!confirm(t('blueprint.confirmDelete'))) return;
 
     try {
       setIsDeleting(true);
       await blueprintApi.deleteBlueprint(blueprintId);
       setBlueprintId(null);
       setMatrix(matrix.map(row => ({ ...row, items: [] })));
+      setValidationResult(null);
       setSaveStatus('idle');
       setErrorMessage(null);
+      setShowDeleteConfirm(false);
     } catch (error) {
       console.error("Failed to delete blueprint", error);
     } finally {
@@ -507,7 +487,7 @@ export default function ExamBlueprint() {
             <SearchableCourseSelect
               courses={courses}
               selectedId={selectedCourse || 0}
-              onChange={setSelectedCourse}
+              onChange={handleSelectedCourseChange}
               disabled={isLoading || isSaving || courses.length === 0}
             />
           </div>
@@ -524,7 +504,7 @@ export default function ExamBlueprint() {
             </button>
             {blueprintId && (
               <button
-                onClick={handleDelete}
+                onClick={() => setShowDeleteConfirm(true)}
                 disabled={isLoading || isDeleting}
                 className="flex items-center gap-2 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-400 rounded-lg transition-colors disabled:opacity-50"
               >
@@ -545,6 +525,37 @@ export default function ExamBlueprint() {
         <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-200 flex items-center gap-2">
           <AlertCircle className="w-5 h-5 flex-shrink-0" />
           <span>{errorMessage || t('blueprint.saveError')}</span>
+        </div>
+      )}
+
+      {matrix.length > 0 && (
+        <div className={`rounded-xl border p-4 ${validationCardClass}`}>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <div className="font-semibold">
+                {validationTitle}
+              </div>
+              <p className="text-sm mt-1">
+                {validationDescription}
+              </p>
+            </div>
+            {hasValidationResult && !validationResult.is_valid && (
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => navigate('/ai-generation')}>Tạo thêm câu hỏi</Button>
+                <Button variant="outline" size="sm" onClick={() => navigate('/review')}>Duyệt câu hỏi</Button>
+                <Button variant="outline" size="sm" onClick={() => navigate('/question-bank')}>Xem ngân hàng</Button>
+              </div>
+            )}
+          </div>
+          {hasValidationResult && !validationResult.is_valid && (
+            <ul className="mt-3 list-disc pl-5 text-sm space-y-1">
+              {validationResult.details.filter(detail => !detail.is_valid).map(detail => (
+                <li key={`${detail.learning_outcome_id}-${detail.question_type}`}>
+                  {formatValidationMissingDetail(detail)}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -616,9 +627,9 @@ export default function ExamBlueprint() {
                   </th>
                 </tr>
                 <tr>
-                  <th className="px-2 py-2 border border-gray-300 dark:border-gray-600 text-center font-semibold text-green-700 dark:text-green-400">D (30%)</th>
-                  <th className="px-2 py-2 border border-gray-300 dark:border-gray-600 text-center font-semibold text-amber-700 dark:text-amber-400">TB (40%)</th>
-                  <th className="px-2 py-2 border border-gray-300 dark:border-gray-600 text-center font-semibold text-red-700 dark:text-red-400">K (30%)</th>
+                  <th className="px-2 py-2 border border-gray-300 dark:border-gray-600 text-center font-semibold text-green-700 dark:text-green-400">Dễ</th>
+                  <th className="px-2 py-2 border border-gray-300 dark:border-gray-600 text-center font-semibold text-amber-700 dark:text-amber-400">Trung bình</th>
+                  <th className="px-2 py-2 border border-gray-300 dark:border-gray-600 text-center font-semibold text-red-700 dark:text-red-400">Khó</th>
                   <th className="px-2 py-2 border border-gray-300 dark:border-gray-600 text-center font-bold text-indigo-700 dark:text-indigo-400">{t('blueprint.total')}</th>
                 </tr>
               </thead>
@@ -794,30 +805,20 @@ export default function ExamBlueprint() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showMissingWarning} onOpenChange={setShowMissingWarning}>
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Thiếu câu hỏi trong Ngân hàng</DialogTitle>
+            <DialogTitle>Xóa ma trận đề thi?</DialogTitle>
           </DialogHeader>
           <div className="py-4 text-sm text-gray-700 dark:text-gray-300">
-            <p className="mb-4">
-              Học phần này không đáp ứng đủ số câu hỏi theo Blueprint bạn vừa thiết lập. Blueprint sẽ được lưu dưới dạng <strong>Bản nháp (Draft)</strong> và không thể dùng để tạo đề thi cho đến khi bạn bổ sung đủ câu hỏi.
-            </p>
-            {missingDetails.length > 0 && (
-              <div className="mb-4 bg-red-50 dark:bg-red-900/20 p-3 rounded-md border border-red-100 dark:border-red-800">
-                <p className="font-semibold text-red-800 dark:text-red-400 mb-2">{t('blueprint.missingDetails')}</p>
-                <ul className="list-disc pl-5 space-y-1 text-red-700 dark:text-red-300">
-                  {missingDetails.map((detail, idx) => (
-                    <li key={idx}>{detail}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <p className="font-medium text-red-600 dark:text-red-400">Bạn muốn tiếp tục lưu Blueprint hay chuyển sang Ngân hàng để tạo thêm câu hỏi?</p>
+            Ma trận hiện tại sẽ bị xóa khỏi học phần này. Các đề thi đã tạo trước đó vẫn giữ danh sách câu hỏi riêng.
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => navigate('/ai-generation')}>{t('blueprint.goToGen')}</Button>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={executeSave}>{t('blueprint.saveAnyway')}</Button>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} disabled={isDeleting}>Hủy</Button>
+            <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={handleDelete} disabled={isDeleting}>
+              {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Xóa ma trận
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

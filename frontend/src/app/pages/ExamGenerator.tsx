@@ -1,16 +1,17 @@
 import { useApp } from '../context/AppContext';
 import { useNavigate } from 'react-router';
-import { FileText, Download, Eye, CheckCircle, AlertCircle, Loader2, List, Search, ChevronDown } from 'lucide-react';
+import { FileText, CheckCircle, AlertCircle, Loader2, List, Search, ChevronDown } from 'lucide-react';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { examApi } from '../../api/exams';
 import { blueprintApi } from '../../api/blueprints';
-import { Blueprint } from '../../types/exam';
+import { Blueprint, ValidationResultData } from '../../types/exam';
 import { getCourses } from '../../api/courses';
 import { Course } from '../../types/course';
 import { getLearningOutcomes } from '../../api/learningOutcomes';
 import { Alert, AlertTitle, AlertDescription } from '../components/ui/alert';
-import ExamPreview from './ExamPreview';
+import { formatValidationMissingDetail, getBlueprintStatusClass, getBlueprintStatusLabel } from '../utils/examStatus';
+import { Button } from '../components/ui/button';
 
 // Custom Searchable Combobox Component
 function SearchableCourseSelect({
@@ -103,16 +104,17 @@ export default function ExamGenerator() {
   const [isLoading, setIsLoading] = useState(false);
   const [alertInfo, setAlertInfo] = useState<{ type: 'success' | 'error' | 'info', message: string } | null>(null);
   const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
-  const [generatedExamId, setGeneratedExamId] = useState<number | null>(null);
   const [examConfig, setExamConfig] = useState({
-    title: 'Midterm Exam',
-    courseId: 1, // mock CS401
+    title: '',
+    courseId: 0,
     duration: 60,
     blueprintId: null as number | null,
   });
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseSearchTerm, setCourseSearchTerm] = useState('');
   const [totalCourseLOs, setTotalCourseLOs] = useState<number>(0);
+  const [eligibility, setEligibility] = useState<ValidationResultData | null>(null);
+  const [isCheckingEligibility, setIsCheckingEligibility] = useState(false);
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -120,7 +122,13 @@ export default function ExamGenerator() {
         const fetchedCourses = await getCourses();
         setCourses(fetchedCourses);
         if (fetchedCourses.length > 0) {
-          setExamConfig(prev => ({ ...prev, courseId: fetchedCourses[0].id }));
+          const firstCourse = fetchedCourses[0];
+          const today = new Date().toLocaleDateString('vi-VN');
+          setExamConfig(prev => ({
+            ...prev,
+            courseId: firstCourse.id,
+            title: prev.title || `Đề thi - ${firstCourse.code} - ${today}`,
+          }));
         }
       } catch (e) {
         console.error("Failed to load courses", e);
@@ -143,6 +151,7 @@ export default function ExamGenerator() {
         const res = await blueprintApi.getBlueprints(examConfig.courseId);
         // Allow all blueprints to be selected as per requirements
         setBlueprints(res.data);
+        setEligibility(null);
         // Do not auto-select blueprint so user has to choose
       } catch (e) {
         console.error('Failed to fetch blueprints', e);
@@ -152,6 +161,26 @@ export default function ExamGenerator() {
       fetchBlueprints();
     }
   }, [examConfig.courseId]);
+
+  useEffect(() => {
+    const fetchEligibility = async () => {
+      if (!examConfig.blueprintId) {
+        setEligibility(null);
+        return;
+      }
+      try {
+        setIsCheckingEligibility(true);
+        const res = await blueprintApi.checkEligibility(examConfig.blueprintId);
+        setEligibility(res.data);
+      } catch (e) {
+        console.error('Failed to check blueprint eligibility', e);
+        setEligibility(null);
+      } finally {
+        setIsCheckingEligibility(false);
+      }
+    };
+    fetchEligibility();
+  }, [examConfig.blueprintId]);
 
   useEffect(() => {
     const fetchLOs = async () => {
@@ -176,9 +205,9 @@ export default function ExamGenerator() {
   const difficultyData = useMemo(() => {
     if (!selectedBlueprint) {
       return [
-        { name: 'Easy', value: 0, color: '#10b981' },
-        { name: 'Medium', value: 0, color: '#f59e0b' },
-        { name: 'Hard', value: 0, color: '#ef4444' },
+        { name: 'Dễ', value: 0, color: '#10b981' },
+        { name: 'Trung bình', value: 0, color: '#f59e0b' },
+        { name: 'Khó', value: 0, color: '#ef4444' },
       ];
     }
     let easy = 0, medium = 0, hard = 0;
@@ -188,9 +217,9 @@ export default function ExamGenerator() {
       hard += item.hard_count;
     });
     return [
-      { name: 'Easy', value: easy, color: '#10b981' },
-      { name: 'Medium', value: medium, color: '#f59e0b' },
-      { name: 'Hard', value: hard, color: '#ef4444' },
+      { name: 'Dễ', value: easy, color: '#10b981' },
+      { name: 'Trung bình', value: medium, color: '#f59e0b' },
+      { name: 'Khó', value: hard, color: '#ef4444' },
     ];
   }, [selectedBlueprint]);
 
@@ -205,7 +234,7 @@ export default function ExamGenerator() {
     
     // 3. Loại câu hỏi: Hiển thị danh sách các định dạng câu hỏi
     const typeSet = new Set(selectedBlueprint.items.map(i => i.question_type));
-    const typeMap: Record<string, string> = { 'mcq': 'MCQ', 'essay': 'Essay' };
+    const typeMap: Record<string, string> = { 'mcq': 'Trắc nghiệm', 'essay': 'Tự luận' };
     const displayTypes = Array.from(typeSet).map(t => typeMap[t] || t).join(' + ') || 'N/A';
 
     let easy = 0, medium = 0, hard = 0;
@@ -282,18 +311,38 @@ export default function ExamGenerator() {
     setAlertInfo(null);
   };
 
+  const handleCourseChange = (id: number) => {
+    const course = courses.find(c => c.id === id);
+    const today = new Date().toLocaleDateString('vi-VN');
+    setExamConfig({
+      ...examConfig,
+      courseId: id,
+      blueprintId: null,
+      title: course ? `Đề thi - ${course.code} - ${today}` : examConfig.title,
+    });
+  };
+
   const handleGenerate = async () => {
     setAlertInfo(null);
     if (!examConfig.blueprintId) {
       setAlertInfo({ type: 'error', message: t('examGen.validationErrorSelect') });
       return;
     }
+    if (!examConfig.title.trim()) {
+      setAlertInfo({ type: 'error', message: 'Vui lòng nhập tên đề thi.' });
+      return;
+    }
+    if (!examConfig.duration || examConfig.duration <= 0) {
+      setAlertInfo({ type: 'error', message: 'Thời lượng làm bài phải lớn hơn 0.' });
+      return;
+    }
 
     setIsLoading(true);
     try {
       // Check eligibility first
-      const eligibility = await blueprintApi.checkEligibility(examConfig.blueprintId);
-      if (!eligibility.data.is_valid) {
+      const latestEligibility = await blueprintApi.checkEligibility(examConfig.blueprintId);
+      setEligibility(latestEligibility.data);
+      if (!latestEligibility.data.is_valid) {
         setAlertInfo({ type: 'error', message: t('examGen.validationErrorNotEnough') });
         setIsLoading(false);
         return;
@@ -304,7 +353,7 @@ export default function ExamGenerator() {
       const draftRes = await examApi.createExam({
         course_id: examConfig.courseId,
         blueprint_id: examConfig.blueprintId,
-        title: examConfig.title,
+        title: examConfig.title.trim(),
         duration_minutes: examConfig.duration
       });
 
@@ -312,10 +361,7 @@ export default function ExamGenerator() {
       const examData = await examApi.generateExam(draftRes.data.id);
 
       setAlertInfo({ type: 'success', message: t('examGen.generateSuccess') });
-
-      // Instead of navigating, display it inline
-      setGeneratedExamId(examData.data.id);
-      setStep(4); // Step 4: Review
+      navigate(`/exam/${examData.data.id}/preview`);
     } catch (e: any) {
       console.error(e);
       setAlertInfo({ type: 'error', message: e.message || t('examGen.generateFailed') });
@@ -325,13 +371,21 @@ export default function ExamGenerator() {
     }
   };
 
+  const canGenerate =
+    !!examConfig.courseId &&
+    !!examConfig.blueprintId &&
+    !!examConfig.title.trim() &&
+    examConfig.duration > 0 &&
+    !!eligibility?.is_valid &&
+    selectedBlueprint?.status === 'validated';
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('exam.title')}</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">Create comprehensive exams from your question bank</p>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">Tạo đề thi từ ma trận hợp lệ và ngân hàng câu hỏi đã duyệt</p>
         </div>
         <button
           onClick={() => navigate('/exam-list')}
@@ -355,10 +409,10 @@ export default function ExamGenerator() {
                   {step > s ? <CheckCircle className="w-6 h-6" /> : s}
                 </div>
                 <span className="text-xs mt-2 text-gray-600 dark:text-gray-400">
-                  {s === 1 && 'Configure'}
-                  {s === 2 && 'Select Blueprint'}
-                  {s === 3 && 'Generate'}
-                  {s === 4 && 'Review'}
+                  {s === 1 && 'Cấu hình'}
+                  {s === 2 && 'Chọn ma trận'}
+                  {s === 3 && 'Tạo đề'}
+                  {s === 4 && 'Kiểm tra'}
                 </span>
               </div>
               {index < 3 && (
@@ -379,7 +433,7 @@ export default function ExamGenerator() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Exam Title
+                  Tên đề thi
                 </label>
                 <input
                   type="text"
@@ -391,22 +445,23 @@ export default function ExamGenerator() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Course
+                  Học phần
                 </label>
                 <SearchableCourseSelect
                   courses={courses}
                   selectedId={examConfig.courseId}
-                  onChange={(id) => setExamConfig({ ...examConfig, courseId: id, blueprintId: null })}
+                  onChange={handleCourseChange}
                   disabled={isLoading || courses.length === 0}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Duration (minutes)
+                  Thời lượng làm bài (phút)
                 </label>
                 <input
                   type="number"
+                  min="1"
                   value={examConfig.duration}
                   onChange={(e) => setExamConfig({ ...examConfig, duration: parseInt(e.target.value) })}
                   className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -424,14 +479,43 @@ export default function ExamGenerator() {
                 >
                   <option value="" disabled>{t('examGen.selectBlueprintPlaceholder')}</option>
                   {blueprints.map(b => (
-                    <option key={b.id} value={b.id}>{b.title} ({b.total_questions} {t('exam.questions')}) {b.status !== 'validated' ? '(Chưa đủ ĐK)' : ''}</option>
+                    <option key={b.id} value={b.id}>
+                      {b.title} ({b.total_questions} {t('exam.questions')}) - {getBlueprintStatusLabel(b.status)}
+                    </option>
                   ))}
                 </select>
               </div>
 
+              {selectedBlueprint && (
+                <div className={`rounded-lg border p-3 text-sm ${getBlueprintStatusClass(selectedBlueprint.status)}`}>
+                  <div className="font-semibold">{getBlueprintStatusLabel(selectedBlueprint.status)}</div>
+                  <div className="mt-1">
+                    {isCheckingEligibility ? 'Đang kiểm tra số câu hỏi...' : eligibility?.is_valid
+                      ? 'Ngân hàng câu hỏi đã đáp ứng ma trận này.'
+                      : 'Ma trận này chưa đủ câu hỏi đã duyệt để tạo đề.'}
+                  </div>
+                  {eligibility && !eligibility.is_valid && (
+                    <ul className="mt-2 list-disc pl-5 space-y-1">
+                      {eligibility.details.filter(d => !d.is_valid).map(detail => (
+                        <li key={`${detail.learning_outcome_id}-${detail.question_type}`}>
+                          {formatValidationMissingDetail(detail)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {eligibility && !eligibility.is_valid && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={() => navigate('/ai-generation')}>Tạo thêm câu hỏi</Button>
+                      <Button variant="outline" size="sm" onClick={() => navigate('/review')}>Duyệt câu hỏi</Button>
+                      <Button variant="outline" size="sm" onClick={() => navigate('/exam-blueprint')}>Sửa ma trận</Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <button
                 onClick={handleGenerate}
-                disabled={isLoading || !examConfig.blueprintId}
+                disabled={isLoading || !canGenerate}
                 className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
@@ -450,7 +534,7 @@ export default function ExamGenerator() {
 
           {/* Difficulty Distribution - Dynamic from Blueprint */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Difficulty Distribution</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Phân bổ độ khó</h2>
             {selectedBlueprint ? (
               <>
                 <ResponsiveContainer width="100%" height={200}>
@@ -494,12 +578,12 @@ export default function ExamGenerator() {
 
           {/* Quality Validation - Dynamic from Blueprint */}
           {selectedBlueprint && qualityInfo && (
-            <div className={`bg-gradient-to-br ${qualityInfo.loCoverage === 100 ? 'from-green-500 to-green-600' : 'from-amber-500 to-amber-600'} rounded-xl shadow-lg p-6 text-white`}>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 text-gray-900 dark:text-white">
               <div className="flex items-center gap-3 mb-3">
-                <CheckCircle className="w-6 h-6" />
-                <h3 className="font-semibold">Quality Validation</h3>
+                <CheckCircle className="w-6 h-6 text-blue-600" />
+                <h3 className="font-semibold">Tóm tắt ma trận</h3>
               </div>
-              <div className="space-y-2 text-sm opacity-90">
+              <div className="space-y-2 text-sm">
                 <div className="flex items-center justify-between">
                   <span>{t('blueprint.total')}</span>
                   <span className="font-semibold">{qualityInfo.totalQuestions}</span>
@@ -513,11 +597,11 @@ export default function ExamGenerator() {
                   <span className="font-semibold">{qualityInfo.displayTypes}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Blueprint Alignment</span>
+                  <span>Mức khớp ma trận</span>
                   <span className="font-semibold">{qualityInfo.blueprintAlignment}%</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Balance Score</span>
+                  <span>Mức cân bằng CDR</span>
                   <span className="font-semibold">{qualityInfo.balanceScore}</span>
                 </div>
               </div>
@@ -527,19 +611,15 @@ export default function ExamGenerator() {
 
         {/* Right Panel - Exam Preview */}
         <div className="lg:col-span-2">
-          {step === 4 && generatedExamId ? (
-            <ExamPreview examId={generatedExamId} onSaved={() => setStep(1)} hideExport={true} />
-          ) : (
             <div className="bg-slate-50 dark:bg-gray-800/50 rounded-xl shadow-inner border border-dashed border-slate-300 dark:border-gray-700 p-12 flex flex-col items-center justify-center text-center h-full min-h-[400px]">
               <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-4">
                 <FileText className="w-8 h-8" />
               </div>
               <h3 className="text-xl font-medium text-slate-800 dark:text-slate-200 mb-2">{t('examGen.previewDisplay')}</h3>
               <p className="text-slate-500 dark:text-slate-400 max-w-sm">
-                Vui lòng thiết lập cấu hình ở bên trái và nhấn nút "Tạo đề thi" để AI tự động lấy câu hỏi ngẫu nhiên từ ngân hàng dựa trên ma trận (Blueprint).
+                Sau khi tạo thành công, hệ thống sẽ mở trang xem trước để bạn kiểm tra, đổi câu hỏi, sắp xếp và duyệt đề thi.
               </p>
             </div>
-          )}
         </div>
       </div>
     </div>
