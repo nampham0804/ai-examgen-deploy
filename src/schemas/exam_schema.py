@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 
 class ExamQuestionBase(BaseModel):
-    question_id: int
+    question_id: int | None = None
     order_index: int
     criteria_id: int | None = None
 
@@ -54,7 +54,7 @@ class ExamListResponse(BaseModel):
 class ExamPreviewQuestion(BaseModel):
     id: int
     exam_id: int
-    question_id: int
+    question_id: int | None = None
     order_index: int
     text: str
     type: str
