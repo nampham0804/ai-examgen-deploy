@@ -1,6 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router';
 import {
-  BarChart3,
   BookOpen,
   CheckSquare,
   ChevronDown,
@@ -11,7 +10,6 @@ import {
   FileText,
   Globe,
   Grid3x3,
-  LayoutDashboard,
   LogOut,
   Moon,
   Sparkles,
@@ -45,13 +43,6 @@ const navGroups = [
       { path: '/exam-blueprint', icon: Grid3x3, labelKey: 'nav.examBlueprint' },
       { path: '/exam-generator', icon: FileText, labelKey: 'nav.examGenerator' },
       { path: '/exam-list', icon: ClipboardList, label: 'Danh sách đề thi' },
-    ],
-  },
-  {
-    label: 'Báo cáo',
-    items: [
-      { path: '/analytics', icon: BarChart3, labelKey: 'nav.analytics' },
-      { path: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
     ],
   },
 ];
