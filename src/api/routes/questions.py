@@ -3,7 +3,8 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from src.repositories.database import get_db
+from src.api.deps import get_current_user, get_db
+from src.models.user import User
 from src.schemas.question import (
     QuestionCreate,
     QuestionListItemRead,
@@ -37,11 +38,12 @@ def get_questions(
     page: int | None = Query(default=None, ge=1),
     page_size: int | None = Query(default=None, ge=1, le=MAX_LIMIT),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     parsed_limit, parsed_offset = _pagination(limit, offset, page, page_size)
     items, total = question_service.list_questions(
         db,
-        status=status_filter,
+        status_filter=status_filter,
         course_id=course_id,
         document_id=document_id,
         learning_outcome_id=learning_outcome_id,
@@ -49,6 +51,7 @@ def get_questions(
         difficulty=difficulty,
         page=(parsed_offset // parsed_limit) + 1,
         page_size=parsed_limit,
+        user_id=current_user.id,
     )
 
     if page is not None or page_size is not None:
@@ -70,8 +73,8 @@ def get_questions(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=dict)
-def create_question(payload: QuestionCreate, db: Session = Depends(get_db)):
-    question = question_service.create_question(db, payload)
+def create_question(payload: QuestionCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    question = question_service.create_question(db, payload, current_user.id)
     return {
         "data": QuestionResponse.model_validate(question),
         "message": "Question created",
@@ -79,8 +82,8 @@ def create_question(payload: QuestionCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/{question_id}", response_model=dict)
-def get_question_detail(question_id: int, db: Session = Depends(get_db)):
-    question = question_service.get_question(db, question_id)
+def get_question_detail(question_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    question = question_service.get_question(db, question_id, current_user.id)
     return {
         "data": QuestionRead.model_validate(question),
         "message": "Question retrieved",
@@ -88,8 +91,8 @@ def get_question_detail(question_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{question_id}", response_model=dict)
-def update_question(question_id: int, payload: QuestionUpdate, db: Session = Depends(get_db)):
-    question = question_service.update_question(db, question_id, payload)
+def update_question(question_id: int, payload: QuestionUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    question = question_service.update_question(db, question_id, payload, current_user.id)
     return {
         "data": QuestionResponse.model_validate(question),
         "message": "Question updated",
@@ -97,8 +100,8 @@ def update_question(question_id: int, payload: QuestionUpdate, db: Session = Dep
 
 
 @router.post("/{question_id}/approve", response_model=dict)
-def approve_question(question_id: int, db: Session = Depends(get_db)):
-    question = question_service.approve_question(db, question_id)
+def approve_question(question_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    question = question_service.approve_question(db, question_id, current_user.id)
     return {
         "data": QuestionResponse.model_validate(question),
         "message": "Question approved",
@@ -106,8 +109,8 @@ def approve_question(question_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{question_id}/reject", response_model=dict)
-def reject_question(question_id: int, db: Session = Depends(get_db)):
-    question = question_service.reject_question(db, question_id)
+def reject_question(question_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    question = question_service.reject_question(db, question_id, current_user.id)
     return {
         "data": QuestionResponse.model_validate(question),
         "message": "Question rejected",
