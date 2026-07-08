@@ -46,3 +46,19 @@ class Question(Base):
     course = relationship("Course", back_populates="questions")
     learning_outcome = relationship("LearningOutcome", back_populates="questions")
     document = relationship("Document", back_populates="questions")
+
+    @property
+    def course_code(self) -> str | None:
+        return self.course.code if self.course else None
+
+    @property
+    def course_name(self) -> str | None:
+        return self.course.name if self.course else None
+
+    @property
+    def learning_outcome_code(self) -> str | None:
+        return self.learning_outcome.code if self.learning_outcome else None
+
+    @property
+    def learning_outcome_description(self) -> str | None:
+        return self.learning_outcome.description if self.learning_outcome else None

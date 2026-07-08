@@ -105,6 +105,10 @@ class QuestionRead(BaseModel):
     id: int
     course_id: int
     learning_outcome_id: int
+    course_code: str | None = None
+    course_name: str | None = None
+    learning_outcome_code: str | None = None
+    learning_outcome_description: str | None = None
     document_id: int | None = None
     question_type: QuestionType
     difficulty: QuestionDifficulty
