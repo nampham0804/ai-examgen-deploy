@@ -4,15 +4,16 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_db
+from src.api.deps import get_current_user, get_db
+from src.models.user import User
 from src.services.exam_service import ExamService
 
 router = APIRouter(prefix="/exports", tags=["exports"])
 
 
-def verify_export_access(exam_id: int, db: Session):
+def verify_export_access(exam_id: int, db: Session, user_id: int):
     service = ExamService(db)
-    exam = service.get_exam_by_id(exam_id)
+    exam = service.get_exam_by_id(exam_id, user_id)
     if exam.status != "approved":
         raise HTTPException(status_code=400, detail="Only approved exams can be exported")
     return service, exam
@@ -49,9 +50,9 @@ def is_correct_match(opt: str, ans: str, index: int = -1) -> bool:
 
 
 @router.get("/gift")
-def export_gift(exam_id: int, db: Session = Depends(get_db)):
-    service, exam = verify_export_access(exam_id, db)
-    preview_data = service.get_exam_preview(exam_id)
+def export_gift(exam_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    service, exam = verify_export_access(exam_id, db, current_user.id)
+    preview_data = service.get_exam_preview(exam_id, current_user.id)
 
     gift_content = f"// Exam {preview_data.title}\n\n"
     for i, q in enumerate(preview_data.questions):
@@ -94,9 +95,9 @@ def export_gift(exam_id: int, db: Session = Depends(get_db)):
     })
 
 @router.get("/xml")
-def export_xml(exam_id: int, db: Session = Depends(get_db)):
-    service, exam = verify_export_access(exam_id, db)
-    preview_data = service.get_exam_preview(exam_id)
+def export_xml(exam_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    service, exam = verify_export_access(exam_id, db, current_user.id)
+    preview_data = service.get_exam_preview(exam_id, current_user.id)
     course_name = preview_data.course_name or "Course"
 
     xml_content = '<?xml version="1.0" encoding="UTF-8"?>\n<quiz>\n'
@@ -179,9 +180,9 @@ def export_xml(exam_id: int, db: Session = Depends(get_db)):
     })
 
 @router.get("/doc")
-def export_doc(exam_id: int, db: Session = Depends(get_db)):
-    service, exam = verify_export_access(exam_id, db)
-    preview_data = service.get_exam_preview(exam_id)
+def export_doc(exam_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    service, exam = verify_export_access(exam_id, db, current_user.id)
+    preview_data = service.get_exam_preview(exam_id, current_user.id)
     course_name = preview_data.course_name or "Course"
 
     # Load the DOC template header
@@ -267,9 +268,9 @@ def export_doc(exam_id: int, db: Session = Depends(get_db)):
     })
 
 @router.get("/txt")
-def export_txt(exam_id: int, db: Session = Depends(get_db)):
-    service, exam = verify_export_access(exam_id, db)
-    preview_data = service.get_exam_preview(exam_id)
+def export_txt(exam_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    service, exam = verify_export_access(exam_id, db, current_user.id)
+    preview_data = service.get_exam_preview(exam_id, current_user.id)
 
     txt_content = ""
     for i, q in enumerate(preview_data.questions):

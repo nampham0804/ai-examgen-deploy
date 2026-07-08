@@ -9,12 +9,13 @@ class ExamRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_blueprint(self, blueprint_in: BlueprintCreate, total_questions: int) -> ExamBlueprint:
+    def create_blueprint(self, blueprint_in: BlueprintCreate, total_questions: int, created_by: int | None = None) -> ExamBlueprint:
         db_blueprint = ExamBlueprint(
             course_id=blueprint_in.course_id,
             title=blueprint_in.title,
             total_questions=total_questions,
-            status="draft"
+            status="draft",
+            created_by=created_by
         )
         self.db.add(db_blueprint)
         self.db.commit()
@@ -37,6 +38,10 @@ class ExamRepository:
 
     def get_blueprints_by_course(self, course_id: int):
         return self.db.query(ExamBlueprint).filter(ExamBlueprint.course_id == course_id).all()
+
+    def get_blueprints_by_user(self, user_id: int):
+        from src.models.course import Course
+        return self.db.query(ExamBlueprint).join(Course, ExamBlueprint.course_id == Course.id).filter(Course.owner_id == user_id).order_by(ExamBlueprint.id.desc()).all()
 
     def get_blueprint_by_id(self, blueprint_id: int):
         return self.db.query(ExamBlueprint).filter(ExamBlueprint.id == blueprint_id).first()
@@ -80,13 +85,14 @@ class ExamRepository:
         return False
 
     # Exam methods
-    def create_exam(self, exam_in: ExamCreate) -> Exam:
+    def create_exam(self, exam_in: ExamCreate, created_by: int | None = None) -> Exam:
         db_exam = Exam(
             course_id=exam_in.course_id,
             blueprint_id=exam_in.blueprint_id,
             title=exam_in.title,
             duration_minutes=exam_in.duration_minutes,
-            status="draft"
+            status="draft",
+            created_by=created_by
         )
         self.db.add(db_exam)
         self.db.commit()
@@ -95,6 +101,10 @@ class ExamRepository:
 
     def get_exams_by_course(self, course_id: int):
         return self.db.query(Exam).filter(Exam.course_id == course_id).all()
+
+    def get_exams_by_user(self, user_id: int):
+        from src.models.course import Course
+        return self.db.query(Exam).join(Course, Exam.course_id == Course.id).filter(Course.owner_id == user_id).order_by(Exam.id.desc()).all()
 
     def get_all_exams(self):
         return self.db.query(Exam).order_by(Exam.id.desc()).all()
