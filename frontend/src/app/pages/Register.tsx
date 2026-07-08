@@ -5,7 +5,7 @@ import { getApiErrorMessage } from '@/api/client';
 import { useAuth } from '../context/AuthContext';
 
 export default function Register() {
-  const { isAuthenticated, login, register } = useAuth();
+  const { isAuthenticated, register } = useAuth();
   const navigate = useNavigate();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -23,8 +23,10 @@ export default function Register() {
     setSubmitting(true);
     try {
       await register({ full_name: fullName, email, password });
-      await login({ email, password });
-      navigate('/courses', { replace: true });
+      navigate('/login', {
+        state: { successMessage: 'Đăng ký tài khoản thành công! Vui lòng đăng nhập.' },
+        replace: true,
+      });
     } catch (err) {
       setError(getApiErrorMessage(err));
     } finally {
