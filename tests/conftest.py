@@ -24,6 +24,42 @@ async def client():
         yield ac
 
 
+@pytest_asyncio.fixture
+async def auth_headers(client):
+    await client.post(
+        "/api/auth/register",
+        json={
+            "email": "teacher@example.com",
+            "password": "Password123",
+            "full_name": "Teacher One",
+        },
+    )
+    login_response = await client.post(
+        "/api/auth/login",
+        json={"email": "teacher@example.com", "password": "Password123"},
+    )
+    token = login_response.json()["data"]["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture
+async def auth_headers_other(client):
+    await client.post(
+        "/api/auth/register",
+        json={
+            "email": "other@example.com",
+            "password": "Password123",
+            "full_name": "Other Teacher",
+        },
+    )
+    login_response = await client.post(
+        "/api/auth/login",
+        json={"email": "other@example.com", "password": "Password123"},
+    )
+    token = login_response.json()["data"]["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 @pytest.fixture
 def mock_llm():
     """Mock LLM to avoid calling OpenAI during tests.

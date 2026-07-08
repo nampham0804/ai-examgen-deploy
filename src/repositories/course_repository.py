@@ -5,8 +5,8 @@ from src.models.course import Course
 from src.schemas.course import CourseCreate, CourseUpdate
 
 
-def get_courses(db: Session) -> list[Course]:
-    return list(db.scalars(select(Course).order_by(Course.id.desc())).all())
+def get_courses(db: Session, owner_id: int) -> list[Course]:
+    return list(db.scalars(select(Course).where(Course.owner_id == owner_id).order_by(Course.id.desc())).all())
 
 
 def get_course_by_id(db: Session, course_id: int) -> Course | None:
@@ -17,8 +17,8 @@ def get_course(db: Session, course_id: int) -> Course | None:
     return get_course_by_id(db, course_id)
 
 
-def get_course_by_code(db: Session, code: str) -> Course | None:
-    return db.scalar(select(Course).where(Course.code == code))
+def get_course_by_code(db: Session, code: str, owner_id: int) -> Course | None:
+    return db.scalar(select(Course).where(Course.code == code, Course.owner_id == owner_id))
 
 
 def create_course(db: Session, payload: CourseCreate, owner_id: int = 1) -> Course:
