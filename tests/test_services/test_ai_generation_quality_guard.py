@@ -62,6 +62,7 @@ def test_generate_questions_saves_quality_valid_mcq_as_pending_review(monkeypatc
         difficulty="medium",
         num_questions=1,
         top_k=1,
+        user_id=1,
     )
 
     saved_question = db.query(Question).one()
@@ -141,6 +142,7 @@ def test_generate_questions_injects_existing_question_texts_into_prompt(monkeypa
         difficulty="medium",
         num_questions=1,
         top_k=1,
+        user_id=1,
     )
 
     prompt = captured_messages["messages"][1]["content"]
@@ -204,6 +206,7 @@ def test_generate_questions_supports_multiple_document_ids_and_merges_retrieved_
         difficulty="medium",
         num_questions=1,
         top_k=1,
+        user_id=1,
     )
 
     prompt = captured_messages["messages"][1]["content"]
@@ -287,6 +290,7 @@ def test_generate_questions_still_rejects_existing_duplicate_after_llm(monkeypat
             difficulty="medium",
             num_questions=1,
             top_k=1,
+            user_id=1,
         )
 
     assert exc.value.error == "Question validation failed"
@@ -366,6 +370,7 @@ def test_generate_questions_rejects_duplicate_from_any_selected_document(monkeyp
             difficulty="medium",
             num_questions=1,
             top_k=1,
+            user_id=1,
         )
 
     assert exc.value.error == "Question validation failed"
@@ -378,7 +383,7 @@ def _seed_generation_db():
     session_factory = sessionmaker(bind=engine)
     db = session_factory()
 
-    course = Course(code="CSDL", name="Database Systems", description=None)
+    course = Course(code="CSDL", name="Database Systems", description=None, owner_id=1)
     db.add(course)
     db.flush()
 

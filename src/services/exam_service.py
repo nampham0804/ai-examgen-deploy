@@ -46,7 +46,7 @@ class ExamService:
             "snapshot_explanation": row.explanation,
         }
 
-    def create_blueprint(self, blueprint_in: BlueprintCreate):
+    def create_blueprint(self, blueprint_in: BlueprintCreate, user_id: int):
         total_questions = sum(
             item.easy_count + item.medium_count + item.hard_count
             for item in blueprint_in.items
@@ -54,18 +54,34 @@ class ExamService:
         if total_questions == 0:
             raise HTTPException(status_code=422, detail="Total questions must be greater than 0")
 
-        return self.repo.create_blueprint(blueprint_in, total_questions)
+        from src.repositories.course_repository import get_course_by_id
+        course = get_course_by_id(self.db, blueprint_in.course_id)
+        if course is None or course.owner_id != user_id:
+            raise HTTPException(status_code=404, detail="Course not found")
 
-    def get_blueprints_by_course(self, course_id: int):
-        return self.repo.get_blueprints_by_course(course_id)
+        return self.repo.create_blueprint(blueprint_in, total_questions, created_by=user_id)
 
-    def get_blueprint_by_id(self, blueprint_id: int):
+    def get_blueprints(self, course_id: int | None, user_id: int):
+        if course_id is not None:
+            from src.repositories.course_repository import get_course_by_id
+            course = get_course_by_id(self.db, course_id)
+            if course is None or course.owner_id != user_id:
+                raise HTTPException(status_code=404, detail="Course not found")
+            return self.repo.get_blueprints_by_course(course_id)
+        return self.repo.get_blueprints_by_user(user_id)
+
+    def get_blueprint_by_id(self, blueprint_id: int, user_id: int):
         blueprint = self.repo.get_blueprint_by_id(blueprint_id)
         if not blueprint:
             raise HTTPException(status_code=404, detail="Blueprint not found")
+        from src.repositories.course_repository import get_course_by_id
+        course = get_course_by_id(self.db, blueprint.course_id)
+        if course is None or course.owner_id != user_id:
+            raise HTTPException(status_code=404, detail="Blueprint not found")
         return blueprint
 
-    def update_blueprint(self, blueprint_id: int, blueprint_update: BlueprintUpdate):
+    def update_blueprint(self, blueprint_id: int, blueprint_update: BlueprintUpdate, user_id: int):
+        self.get_blueprint_by_id(blueprint_id, user_id)
         total_questions = None
         if blueprint_update.items is not None:
             total_questions = sum(
@@ -80,14 +96,15 @@ class ExamService:
             raise HTTPException(status_code=404, detail="Blueprint not found")
         return blueprint
 
-    def delete_blueprint(self, blueprint_id: int):
+    def delete_blueprint(self, blueprint_id: int, user_id: int):
+        self.get_blueprint_by_id(blueprint_id, user_id)
         success = self.repo.delete_blueprint(blueprint_id)
         if not success:
             raise HTTPException(status_code=404, detail="Blueprint not found")
         return True
 
-    def validate_blueprint(self, blueprint_id: int, update_status: bool = True) -> ValidationResultData:
-        blueprint = self.get_blueprint_by_id(blueprint_id)
+    def validate_blueprint(self, blueprint_id: int, update_status: bool = True, user_id: int = None) -> ValidationResultData:
+        blueprint = self.get_blueprint_by_id(blueprint_id, user_id)
 
         # Query approved questions matching blueprint requirements
         # We use raw SQL to avoid depending on models not yet created by other teams
@@ -170,18 +187,29 @@ class ExamService:
         return ValidationResultData(is_valid=all_valid, total_required=total_required, details=details)
 
     # Exam methods
-    def create_exam(self, exam_in: ExamCreate):
+    def create_exam(self, exam_in: ExamCreate, user_id: int):
         if not exam_in.title.strip():
             raise HTTPException(status_code=422, detail="Exam title is required")
         if exam_in.duration_minutes <= 0:
             raise HTTPException(status_code=422, detail="Exam duration must be greater than 0")
-        return self.repo.create_exam(exam_in)
 
-    def get_exams_by_course(self, course_id: int):
-        return self._fetch_exams_with_details("WHERE e.course_id = :course_id", {"course_id": course_id})
+        from src.repositories.course_repository import get_course_by_id
+        course = get_course_by_id(self.db, exam_in.course_id)
+        if course is None or course.owner_id != user_id:
+            raise HTTPException(status_code=404, detail="Course not found")
+        if exam_in.blueprint_id:
+            self.get_blueprint_by_id(exam_in.blueprint_id, user_id)
 
-    def get_all_exams(self):
-        return self._fetch_exams_with_details("", {})
+        return self.repo.create_exam(exam_in, created_by=user_id)
+
+    def get_exams(self, course_id: int | None, user_id: int):
+        if course_id is not None:
+            from src.repositories.course_repository import get_course_by_id
+            course = get_course_by_id(self.db, course_id)
+            if course is None or course.owner_id != user_id:
+                raise HTTPException(status_code=404, detail="Course not found")
+            return self._fetch_exams_with_details("WHERE e.course_id = :course_id", {"course_id": course_id})
+        return self._fetch_exams_with_details("WHERE c.owner_id = :owner_id", {"owner_id": user_id})
 
     def _fetch_exams_with_details(self, where_clause: str, params: dict):
         query = text(f"""
@@ -195,20 +223,25 @@ class ExamService:
         results = self.db.execute(query, params).mappings().all()
         return [dict(row) for row in results]
 
-    def delete_exam(self, exam_id: int):
+    def delete_exam(self, exam_id: int, user_id: int):
+        self.get_exam_by_id(exam_id, user_id)
         success = self.repo.delete_exam(exam_id)
         if not success:
             raise HTTPException(status_code=404, detail="Exam not found")
         return {"message": "Exam deleted successfully"}
 
-    def get_exam_by_id(self, exam_id: int):
+    def get_exam_by_id(self, exam_id: int, user_id: int):
         exam = self.repo.get_exam_by_id(exam_id)
         if not exam:
             raise HTTPException(status_code=404, detail="Exam not found")
+        from src.repositories.course_repository import get_course_by_id
+        course = get_course_by_id(self.db, exam.course_id)
+        if course is None or course.owner_id != user_id:
+            raise HTTPException(status_code=404, detail="Exam not found")
         return exam
 
-    def update_exam(self, exam_id: int, exam_update: ExamUpdate):
-        current_exam = self.get_exam_by_id(exam_id)
+    def update_exam(self, exam_id: int, exam_update: ExamUpdate, user_id: int):
+        current_exam = self.get_exam_by_id(exam_id, user_id)
         if current_exam.status == "approved":
             changes = exam_update.model_dump(exclude_unset=True)
             allowed_noop_status = set(changes) == {"status"} and changes.get("status") == "approved"
@@ -223,12 +256,12 @@ class ExamService:
             raise HTTPException(status_code=404, detail="Exam not found")
         return exam
 
-    def generate_exam(self, exam_id: int):
-        exam = self.get_exam_by_id(exam_id)
+    def generate_exam(self, exam_id: int, user_id: int):
+        exam = self.get_exam_by_id(exam_id, user_id)
         if not exam.blueprint_id:
             raise HTTPException(status_code=400, detail="Exam has no associated blueprint")
 
-        blueprint = self.get_blueprint_by_id(exam.blueprint_id)
+        blueprint = self.get_blueprint_by_id(exam.blueprint_id, user_id)
         if blueprint.status != "validated":
             raise HTTPException(status_code=400, detail="Blueprint must be validated before generation")
 
@@ -294,8 +327,8 @@ class ExamService:
         updated_exam = self.repo.update_exam_status(exam_id, "draft", len(selected_questions_info))
         return updated_exam
 
-    def get_exam_preview(self, exam_id: int) -> ExamPreviewData:
-        exam = self.get_exam_by_id(exam_id)
+    def get_exam_preview(self, exam_id: int, user_id: int) -> ExamPreviewData:
+        exam = self.get_exam_by_id(exam_id, user_id)
 
         # In a real system, we'd query `courses` for the course name.
         # Here we hardcode or mock it if table doesn't exist, but let's try raw SQL
@@ -363,8 +396,8 @@ class ExamService:
             questions=questions,
         )
 
-    def swap_exam_question(self, exam_id: int, question_id: int):
-        exam = self.get_exam_by_id(exam_id)
+    def swap_exam_question(self, exam_id: int, question_id: int, user_id: int):
+        exam = self.get_exam_by_id(exam_id, user_id)
         if exam.status == "approved":
             raise HTTPException(status_code=400, detail="Approved exams cannot be modified")
 
@@ -455,8 +488,8 @@ class ExamService:
 
         return {"message": "Question swapped successfully", "new_question_id": snapshot["question_id"]}
 
-    def reorder_exam(self, exam_id: int, items: list[dict]):
-        exam = self.get_exam_by_id(exam_id)
+    def reorder_exam(self, exam_id: int, items: list[dict], user_id: int):
+        exam = self.get_exam_by_id(exam_id, user_id)
         if exam.status == "approved":
             raise HTTPException(status_code=400, detail="Approved exams cannot be reordered")
 

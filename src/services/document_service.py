@@ -36,8 +36,10 @@ def upload_document(
     mime_type: str | None,
     file_bytes: bytes,
     document_type: str = "lecture",
+    uploaded_by: int,
 ) -> Document:
-    if get_course(db, course_id) is None:
+    course = get_course(db, course_id)
+    if course is None or course.owner_id != uploaded_by:
         raise DocumentUploadError("Course not found", status_code=404, error="Not found")
 
     normalized_document_type = document_type.strip() if document_type else "lecture"
@@ -67,7 +69,7 @@ def upload_document(
     return create_document(
         db,
         course_id=course_id,
-        uploaded_by=1,
+        uploaded_by=uploaded_by,
         file_name=file_name,
         stored_file_name=stored_file_name,
         file_type=extension.removeprefix("."),

@@ -8,11 +8,11 @@ class ExamBlueprint(Base):
     __tablename__ = "exam_blueprints"
 
     id = Column(Integer, primary_key=True, index=True)
-    course_id = Column(Integer, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), index=True)
     title = Column(String(255), nullable=False)
     total_questions = Column(Integer, default=0)
     status = Column(String(50), default='draft')
-    created_by = Column(Integer, nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -40,13 +40,13 @@ class Exam(Base):
     __tablename__ = "exams"
 
     id = Column(Integer, primary_key=True, index=True)
-    course_id = Column(Integer, index=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), index=True)
     blueprint_id = Column(Integer, ForeignKey("exam_blueprints.id", ondelete="SET NULL"), nullable=True)
     title = Column(String(255), nullable=False)
     duration_minutes = Column(Integer, default=60)
     total_questions = Column(Integer, default=0)
     status = Column(String(50), default='draft') # draft, generated
-    created_by = Column(Integer, nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

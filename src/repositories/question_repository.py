@@ -92,6 +92,7 @@ def list_questions(
     status: str | None = None,
     question_type: str | None = None,
     difficulty: str | None = None,
+    owner_id: int | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> tuple[list[Question], int]:
@@ -103,6 +104,7 @@ def list_questions(
         status=status,
         question_type=question_type,
         difficulty=difficulty,
+        owner_id=owner_id,
     )
     count_statement = _apply_filters(
         select(func.count()).select_from(Question),
@@ -112,6 +114,7 @@ def list_questions(
         status=status,
         question_type=question_type,
         difficulty=difficulty,
+        owner_id=owner_id,
     )
     statement = (
         filtered.options(joinedload(Question.course), joinedload(Question.learning_outcome))
@@ -131,6 +134,7 @@ def get_questions(
     learning_outcome_id: int | None = None,
     question_type: str | None = None,
     difficulty: str | None = None,
+    owner_id: int | None = None,
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[Question], int]:
@@ -142,6 +146,7 @@ def get_questions(
         learning_outcome_id=learning_outcome_id,
         question_type=question_type,
         difficulty=difficulty,
+        owner_id=owner_id,
         limit=page_size,
         offset=(page - 1) * page_size,
     )
@@ -185,7 +190,11 @@ def _apply_filters(
     status: str | None,
     question_type: str | None,
     difficulty: str | None,
+    owner_id: int | None = None,
 ) -> Select:
+    if owner_id is not None:
+        from src.models.course import Course
+        statement = statement.join(Course, Question.course_id == Course.id).where(Course.owner_id == owner_id)
     if course_id is not None:
         statement = statement.where(Question.course_id == course_id)
     if document_id is not None:

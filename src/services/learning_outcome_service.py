@@ -5,22 +5,23 @@ from src.repositories import course_repository, learning_outcome_repository
 from src.schemas.learning_outcome import LearningOutcomeCreate, LearningOutcomeUpdate
 
 
-def _ensure_course_exists(db: Session, course_id: int) -> None:
-    if course_repository.get_course_by_id(db, course_id) is None:
+def _ensure_course_exists(db: Session, course_id: int, owner_id: int) -> None:
+    course = course_repository.get_course_by_id(db, course_id)
+    if course is None or course.owner_id != owner_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "Not found", "detail": "Course not found"},
         )
 
 
-def list_learning_outcomes(db: Session, course_id: int):
-    _ensure_course_exists(db, course_id)
+def list_learning_outcomes(db: Session, course_id: int, owner_id: int):
+    _ensure_course_exists(db, course_id, owner_id)
     return learning_outcome_repository.get_learning_outcomes_by_course(db, course_id)
 
 
-def get_learning_outcome(db: Session, learning_outcome_id: int):
+def get_learning_outcome(db: Session, learning_outcome_id: int, owner_id: int):
     learning_outcome = learning_outcome_repository.get_learning_outcome_by_id(db, learning_outcome_id)
-    if learning_outcome is None:
+    if learning_outcome is None or learning_outcome.course.owner_id != owner_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "Not found", "detail": "Learning outcome not found"},
@@ -28,8 +29,8 @@ def get_learning_outcome(db: Session, learning_outcome_id: int):
     return learning_outcome
 
 
-def create_learning_outcome(db: Session, course_id: int, payload: LearningOutcomeCreate):
-    _ensure_course_exists(db, course_id)
+def create_learning_outcome(db: Session, course_id: int, payload: LearningOutcomeCreate, owner_id: int):
+    _ensure_course_exists(db, course_id, owner_id)
     existing = learning_outcome_repository.get_learning_outcome_by_course_and_code(db, course_id, payload.code)
     if existing is not None:
         raise HTTPException(
@@ -39,8 +40,8 @@ def create_learning_outcome(db: Session, course_id: int, payload: LearningOutcom
     return learning_outcome_repository.create_learning_outcome(db, course_id, payload)
 
 
-def update_learning_outcome(db: Session, learning_outcome_id: int, payload: LearningOutcomeUpdate):
-    learning_outcome = get_learning_outcome(db, learning_outcome_id)
+def update_learning_outcome(db: Session, learning_outcome_id: int, payload: LearningOutcomeUpdate, owner_id: int):
+    learning_outcome = get_learning_outcome(db, learning_outcome_id, owner_id)
     if payload.code is not None:
         existing = learning_outcome_repository.get_learning_outcome_by_course_and_code(
             db,
@@ -55,6 +56,6 @@ def update_learning_outcome(db: Session, learning_outcome_id: int, payload: Lear
     return learning_outcome_repository.update_learning_outcome(db, learning_outcome, payload)
 
 
-def delete_learning_outcome(db: Session, learning_outcome_id: int) -> None:
-    learning_outcome = get_learning_outcome(db, learning_outcome_id)
+def delete_learning_outcome(db: Session, learning_outcome_id: int, owner_id: int) -> None:
+    learning_outcome = get_learning_outcome(db, learning_outcome_id, owner_id)
     learning_outcome_repository.delete_learning_outcome(db, learning_outcome)
