@@ -14,6 +14,7 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
 
   const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/courses';
+  const successMessage = (location.state as { successMessage?: string } | null)?.successMessage;
 
   if (isAuthenticated) {
     return <Navigate to="/courses" replace />;
@@ -47,6 +48,12 @@ export default function Login() {
         </div>
 
         <form onSubmit={handleSubmit} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          {successMessage && !error && (
+            <div className="mb-5 flex items-start gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300">
+              <span>{successMessage}</span>
+            </div>
+          )}
+
           {error && (
             <div className="mb-5 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
               <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />

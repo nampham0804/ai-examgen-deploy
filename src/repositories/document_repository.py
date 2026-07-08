@@ -14,6 +14,7 @@ def list_documents(
     course_id: int | None = None,
     status: str | None = None,
     document_type: str | None = None,
+    uploaded_by: int | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> tuple[list[Document], int]:
@@ -22,12 +23,14 @@ def list_documents(
         course_id=course_id,
         status=status,
         document_type=document_type,
+        uploaded_by=uploaded_by,
     )
     count_statement = _apply_filters(
         select(func.count()).select_from(Document),
         course_id=course_id,
         status=status,
         document_type=document_type,
+        uploaded_by=uploaded_by,
     )
     statement = filtered.order_by(Document.created_at.desc(), Document.id.desc()).limit(limit).offset(offset)
     return list(db.scalars(statement).all()), db.scalar(count_statement) or 0
@@ -72,6 +75,7 @@ def _apply_filters(
     course_id: int | None,
     status: str | None,
     document_type: str | None,
+    uploaded_by: int | None = None,
 ) -> Select:
     if course_id is not None:
         statement = statement.where(Document.course_id == course_id)
@@ -79,4 +83,6 @@ def _apply_filters(
         statement = statement.where(Document.status == status)
     if document_type is not None:
         statement = statement.where(Document.document_type == document_type)
+    if uploaded_by is not None:
+        statement = statement.where(Document.uploaded_by == uploaded_by)
     return statement

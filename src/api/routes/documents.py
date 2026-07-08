@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from src.repositories.database import get_db
+from src.api.deps import get_current_user, get_db
+from src.models.user import User
 from src.repositories.document_chunk_repository import list_document_chunks
 from src.repositories.document_repository import get_document, list_documents
 from src.schemas.document import (
@@ -30,6 +31,7 @@ async def post_document_upload(
     course_id: int = Form(...),
     document_type: str = Form("lecture"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     file_bytes = await file.read()
     try:
@@ -40,6 +42,7 @@ async def post_document_upload(
             mime_type=file.content_type,
             file_bytes=file_bytes,
             document_type=document_type,
+            uploaded_by=current_user.id,
         )
     except DocumentUploadError as exc:
         return JSONResponse(
@@ -61,6 +64,7 @@ def get_documents(
     limit: str | None = None,
     offset: str | None = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         parsed_limit, parsed_offset = _pagination(limit, offset)
@@ -73,11 +77,21 @@ def get_documents(
             "document_type must be one of: syllabus, lecture, old_exam, instructor_rule, external_reference"
         )
 
+    if course_id is not None:
+        from src.repositories.course_repository import get_course
+        course = get_course(db, course_id)
+        if course is None or course.owner_id != current_user.id:
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"error": "Not found", "detail": "Course not found"},
+            )
+
     items, total = list_documents(
         db,
         course_id=course_id,
         status=status_filter,
         document_type=document_type,
+        uploaded_by=current_user.id,
         limit=parsed_limit,
         offset=parsed_offset,
     )
@@ -91,9 +105,9 @@ def get_documents(
 
 
 @router.get("/{document_id}")
-def get_document_detail(document_id: int, db: Session = Depends(get_db)):
+def get_document_detail(document_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     document = get_document(db, document_id)
-    if document is None:
+    if document is None or document.uploaded_by != current_user.id:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content={"error": "Not found", "detail": "Document not found"},
@@ -103,7 +117,14 @@ def get_document_detail(document_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{document_id}/extract")
-def post_document_extract(document_id: int, db: Session = Depends(get_db)):
+def post_document_extract(document_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    document = get_document(db, document_id)
+    if document is None or document.uploaded_by != current_user.id:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"error": "Not found", "detail": "Document not found"},
+        )
+
     try:
         document = extract_and_chunk_document(db, document_id)
     except DocumentExtractionError as exc:
@@ -119,8 +140,9 @@ def post_document_extract(document_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{document_id}/chunks")
-def get_document_chunks(document_id: int, db: Session = Depends(get_db)):
-    if get_document(db, document_id) is None:
+def get_document_chunks(document_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    document = get_document(db, document_id)
+    if document is None or document.uploaded_by != current_user.id:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content={"error": "Not found", "detail": "Document not found"},
