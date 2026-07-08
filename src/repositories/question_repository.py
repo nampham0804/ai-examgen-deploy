@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from sqlalchemy import Select, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from src.models.question import Question
 from src.schemas.question import QuestionCreate, QuestionUpdate
@@ -40,7 +40,12 @@ def create_question(db: Session, payload: QuestionCreate, created_by: int = 1) -
 
 
 def get_question(db: Session, question_id: int) -> Question | None:
-    return db.get(Question, question_id)
+    statement = (
+        select(Question)
+        .options(joinedload(Question.course), joinedload(Question.learning_outcome))
+        .where(Question.id == question_id)
+    )
+    return db.scalar(statement)
 
 
 def get_question_by_id(db: Session, question_id: int) -> Question | None:
@@ -108,7 +113,12 @@ def list_questions(
         question_type=question_type,
         difficulty=difficulty,
     )
-    statement = filtered.order_by(Question.created_at.desc(), Question.id.desc()).limit(limit).offset(offset)
+    statement = (
+        filtered.options(joinedload(Question.course), joinedload(Question.learning_outcome))
+        .order_by(Question.created_at.desc(), Question.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
     return list(db.scalars(statement).all()), db.scalar(count_statement) or 0
 
 
