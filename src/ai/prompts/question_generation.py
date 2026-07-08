@@ -87,6 +87,7 @@ def _build_user_prompt(
         "questions rather than inventing facts. "
 
         "Avoid duplicate or near-duplicate questions. "
+        "Do not repeat or paraphrase existing_questions_to_avoid. "
 
         "Questions must be natural assessment questions and fully "
         "self-contained. "

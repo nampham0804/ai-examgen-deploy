@@ -13,7 +13,7 @@ export interface Blueprint {
   course_id: number;
   title: string;
   total_questions: number;
-  status: 'draft' | 'validated' | 'active';
+  status: 'draft' | 'validated';
   created_by?: number;
   created_at: string;
   updated_at: string;
@@ -86,13 +86,15 @@ export interface ExamQuestion {
 export interface Exam {
   id: number;
   course_id: number;
-  blueprint_id: number;
+  blueprint_id: number | null;
   title: string;
   duration_minutes: number;
   total_questions: number;
-  status: string;
+  status: 'draft' | 'approved';
   created_at: string;
   updated_at: string;
+  course_name?: string | null;
+  blueprint_name?: string | null;
   questions: ExamQuestion[];
 }
 
@@ -116,7 +118,7 @@ export interface ExamListResponse {
 export interface ExamPreviewQuestion {
   id: number;
   exam_id: number;
-  question_id: number;
+  question_id: number | null;
   order_index: number;
   type: 'Multiple Choice' | 'Essay';
   text: string;
