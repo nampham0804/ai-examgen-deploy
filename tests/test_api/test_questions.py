@@ -263,3 +263,75 @@ async def test_question_isolation(client, auth_headers, auth_headers_other):
     # 7. User B tries to reject User A's question - should be 404
     reject_b = await client.post(f"/api/questions/{question_a['id']}/reject", headers=auth_headers_other)
     assert reject_b.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_question_creation_reference_validation(client, auth_headers, auth_headers_other):
+    # 1. Setup User A's resources
+    course_a1 = await _create_course(client, auth_headers, code="QA1")
+    lo_a1 = await _create_learning_outcome(client, course_a1["id"], auth_headers, code="LOA1")
+    
+    course_a2 = await _create_course(client, auth_headers, code="QA2")
+    lo_a2 = await _create_learning_outcome(client, course_a2["id"], auth_headers, code="LOA2")
+
+    response_doc_a = await client.post(
+        "/api/documents/upload",
+        data={"course_id": str(course_a1["id"]), "document_type": "lecture"},
+        files={
+            "file": (
+                "doc_a.docx",
+                b"small docx for validation tests",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+        headers=auth_headers,
+    )
+    assert response_doc_a.status_code == 201
+    doc_a = response_doc_a.json()["data"]
+
+    # 2. Setup User B's resources
+    course_b = await _create_course(client, auth_headers_other, code="QB")
+    lo_b = await _create_learning_outcome(client, course_b["id"], auth_headers_other, code="LOB")
+
+    response_doc_b = await client.post(
+        "/api/documents/upload",
+        data={"course_id": str(course_b["id"]), "document_type": "lecture"},
+        files={
+            "file": (
+                "doc_b.docx",
+                b"small docx for user b",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+        headers=auth_headers_other,
+    )
+    assert response_doc_b.status_code == 201
+    doc_b = response_doc_b.json()["data"]
+
+    # 3. User A attempts to create a question on course_a1 referencing lo_a2 (wrong course) -> 404
+    payload_wrong_course_lo = _mcq_payload(course_a1["id"], lo_a2["id"])
+    res1 = await client.post("/api/questions", json=payload_wrong_course_lo, headers=auth_headers)
+    assert res1.status_code == 404
+
+    # 4. User A attempts to create a question on course_a1 referencing lo_b (wrong user) -> 404
+    payload_other_user_lo = _mcq_payload(course_a1["id"], lo_b["id"])
+    res2 = await client.post("/api/questions", json=payload_other_user_lo, headers=auth_headers)
+    assert res2.status_code == 404
+
+    # 5. User A attempts to create a question referencing doc_b (wrong user) -> 404
+    payload_other_user_doc = _mcq_payload(course_a1["id"], lo_a1["id"])
+    payload_other_user_doc["document_id"] = doc_b["id"]
+    res3 = await client.post("/api/questions", json=payload_other_user_doc, headers=auth_headers)
+    assert res3.status_code == 404
+
+    # 6. User A attempts to create a question referencing doc_a but on course_a2 (wrong course for document) -> 404
+    payload_wrong_course_doc = _mcq_payload(course_a2["id"], lo_a2["id"])
+    payload_wrong_course_doc["document_id"] = doc_a["id"]
+    res4 = await client.post("/api/questions", json=payload_wrong_course_doc, headers=auth_headers)
+    assert res4.status_code == 404
+
+    # 7. User A successfully creates a question with matching course, LO, and document -> 201
+    payload_ok = _mcq_payload(course_a1["id"], lo_a1["id"])
+    payload_ok["document_id"] = doc_a["id"]
+    res5 = await client.post("/api/questions", json=payload_ok, headers=auth_headers)
+    assert res5.status_code == 201

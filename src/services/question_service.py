@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from src.repositories import course_repository, question_repository
+from src.repositories import course_repository, question_repository, learning_outcome_repository, document_repository
 from src.schemas.question import QuestionBase, QuestionCreate, QuestionUpdate
 
 
@@ -80,6 +80,24 @@ def create_question(db: Session, payload: QuestionCreate, user_id: int):
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "Not found", "detail": "Course not found"},
         )
+
+    # Validate Learning Outcome
+    lo = learning_outcome_repository.get_learning_outcome(db, payload.learning_outcome_id)
+    if lo is None or lo.course_id != payload.course_id or lo.course.owner_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "Not found", "detail": "Learning outcome not found"},
+        )
+
+    # Validate Document
+    if payload.document_id is not None:
+        doc = document_repository.get_document(db, payload.document_id)
+        if doc is None or doc.uploaded_by != user_id or doc.course_id != payload.course_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "Not found", "detail": "Document not found"},
+            )
+
     return question_repository.create_question(db, payload, created_by=user_id)
 
 
