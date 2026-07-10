@@ -49,7 +49,7 @@ def test_generate_questions_saves_quality_valid_mcq_as_pending_review(monkeypatc
     monkeypatch.setattr(
         ai_generation_service,
         "retrieve_relevant_chunks",
-        lambda db, document_id, learning_outcome_id, topic, top_k: {
+        lambda db, document_id, learning_outcome_id, topic, top_k, **kwargs: {
             "chunks": [{"chunk_id": chunk_id, "score": 1.0}]
         },
     )
@@ -129,7 +129,7 @@ def test_generate_questions_injects_existing_question_texts_into_prompt(monkeypa
     monkeypatch.setattr(
         ai_generation_service,
         "retrieve_relevant_chunks",
-        lambda db, document_id, learning_outcome_id, topic, top_k: {
+        lambda db, document_id, learning_outcome_id, topic, top_k, **kwargs: {
             "chunks": [{"chunk_id": chunk_id, "score": 1.0}]
         },
     )
@@ -190,7 +190,7 @@ def test_generate_questions_supports_multiple_document_ids_and_merges_retrieved_
         captured_messages["messages"] = messages
         return LLMResponse(content=content, provider="mock_provider", model="mock_model")
 
-    def fake_retrieve(db, document_id, learning_outcome_id, topic, top_k):
+    def fake_retrieve(db, document_id, learning_outcome_id, topic, top_k, **kwargs):
         retrieval_calls.append(document_id)
         chunk_id = first_chunk_id if document_id == first_document_id else second_chunk_id
         return {"chunks": [{"chunk_id": chunk_id, "chunk_index": 0, "score": 1.0}]}
@@ -276,7 +276,7 @@ def test_generate_questions_still_rejects_existing_duplicate_after_llm(monkeypat
     monkeypatch.setattr(
         ai_generation_service,
         "retrieve_relevant_chunks",
-        lambda db, document_id, learning_outcome_id, topic, top_k: {
+        lambda db, document_id, learning_outcome_id, topic, top_k, **kwargs: {
             "chunks": [{"chunk_id": chunk_id, "score": 1.0}]
         },
     )
@@ -350,7 +350,7 @@ def test_generate_questions_rejects_duplicate_from_any_selected_document(monkeyp
     monkeypatch.setattr(
         ai_generation_service,
         "retrieve_relevant_chunks",
-        lambda db, document_id, learning_outcome_id, topic, top_k: {
+        lambda db, document_id, learning_outcome_id, topic, top_k, **kwargs: {
             "chunks": [
                 {
                     "chunk_id": first_chunk_id if document_id == first_document_id else second_chunk_id,
