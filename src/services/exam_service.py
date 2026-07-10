@@ -46,6 +46,13 @@ class ExamService:
             "snapshot_explanation": row.explanation,
         }
 
+    def _validate_blueprint_items_belong_to_course(self, course_id: int, items, user_id: int) -> None:
+        from src.repositories.learning_outcome_repository import get_learning_outcome
+        for item in items:
+            lo = get_learning_outcome(self.db, item.learning_outcome_id)
+            if lo is None or lo.course_id != course_id or lo.course.owner_id != user_id:
+                raise HTTPException(status_code=404, detail="Learning outcome not found")
+
     def create_blueprint(self, blueprint_in: BlueprintCreate, user_id: int):
         total_questions = sum(
             item.easy_count + item.medium_count + item.hard_count
@@ -58,6 +65,8 @@ class ExamService:
         course = get_course_by_id(self.db, blueprint_in.course_id)
         if course is None or course.owner_id != user_id:
             raise HTTPException(status_code=404, detail="Course not found")
+
+        self._validate_blueprint_items_belong_to_course(blueprint_in.course_id, blueprint_in.items, user_id)
 
         return self.repo.create_blueprint(blueprint_in, total_questions, created_by=user_id)
 
@@ -81,7 +90,7 @@ class ExamService:
         return blueprint
 
     def update_blueprint(self, blueprint_id: int, blueprint_update: BlueprintUpdate, user_id: int):
-        self.get_blueprint_by_id(blueprint_id, user_id)
+        blueprint = self.get_blueprint_by_id(blueprint_id, user_id)
         total_questions = None
         if blueprint_update.items is not None:
             total_questions = sum(
@@ -90,6 +99,8 @@ class ExamService:
             )
             if total_questions == 0:
                 raise HTTPException(status_code=422, detail="Total questions must be greater than 0")
+
+            self._validate_blueprint_items_belong_to_course(blueprint.course_id, blueprint_update.items, user_id)
 
         blueprint = self.repo.update_blueprint(blueprint_id, blueprint_update, total_questions)
         if not blueprint:

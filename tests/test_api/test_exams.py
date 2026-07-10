@@ -224,3 +224,123 @@ async def test_exam_isolation(client, auth_headers, auth_headers_other):
     stats_b = (await client.get("/api/analytics/dashboard", headers=auth_headers_other)).json()["data"]
     assert stats_b["courses"] == 0
     assert stats_b["exams"] == 0
+
+
+@pytest.mark.asyncio
+async def test_blueprint_items_validation(client, auth_headers, auth_headers_other):
+    # 1. User A sets up Course A1 + LO A1, and Course A2 + LO A2
+    course_a1 = (await client.post(
+        "/api/courses",
+        json={"code": "EX-A1", "name": "Course A1"},
+        headers=auth_headers,
+    )).json()["data"]
+
+    lo_a1 = (await client.post(
+        f"/api/courses/{course_a1['id']}/learning-outcomes",
+        json={"code": "LOA1", "description": "LO A1"},
+        headers=auth_headers,
+    )).json()["data"]
+
+    course_a2 = (await client.post(
+        "/api/courses",
+        json={"code": "EX-A2", "name": "Course A2"},
+        headers=auth_headers,
+    )).json()["data"]
+
+    lo_a2 = (await client.post(
+        f"/api/courses/{course_a2['id']}/learning-outcomes",
+        json={"code": "LOA2", "description": "LO A2"},
+        headers=auth_headers,
+    )).json()["data"]
+
+    # 2. User B sets up Course B + LO B
+    course_b = (await client.post(
+        "/api/courses",
+        json={"code": "EX-B", "name": "Course B"},
+        headers=auth_headers_other,
+    )).json()["data"]
+
+    lo_b = (await client.post(
+        f"/api/courses/{course_b['id']}/learning-outcomes",
+        json={"code": "LOB", "description": "LO B"},
+        headers=auth_headers_other,
+    )).json()["data"]
+
+    # 3. User A creates blueprint on Course A1 with item referencing LO A2 (wrong course) -> 404
+    bp_wrong_course = await client.post(
+        "/api/blueprints",
+        json={
+            "course_id": course_a1["id"],
+            "title": "Invalid Blueprint 1",
+            "items": [
+                {
+                    "learning_outcome_id": lo_a2["id"],
+                    "question_type": "mcq",
+                    "easy_count": 1,
+                    "medium_count": 0,
+                    "hard_count": 0,
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert bp_wrong_course.status_code == 404
+
+    # 4. User A creates blueprint on Course A1 with item referencing LO B (wrong user) -> 404
+    bp_wrong_user = await client.post(
+        "/api/blueprints",
+        json={
+            "course_id": course_a1["id"],
+            "title": "Invalid Blueprint 2",
+            "items": [
+                {
+                    "learning_outcome_id": lo_b["id"],
+                    "question_type": "mcq",
+                    "easy_count": 1,
+                    "medium_count": 0,
+                    "hard_count": 0,
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert bp_wrong_user.status_code == 404
+
+    # 5. User A successfully creates blueprint on Course A1 with LO A1 -> 200 (Note: POST blueprints returns 200 or 201)
+    bp_ok_res = await client.post(
+        "/api/blueprints",
+        json={
+            "course_id": course_a1["id"],
+            "title": "Valid Blueprint",
+            "items": [
+                {
+                    "learning_outcome_id": lo_a1["id"],
+                    "question_type": "mcq",
+                    "easy_count": 1,
+                    "medium_count": 0,
+                    "hard_count": 0,
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert bp_ok_res.status_code in {200, 201}
+    bp_ok = bp_ok_res.json()["data"]
+
+    # 6. User A updates blueprint with item referencing LO A2 (wrong course) -> 404
+    update_res = await client.put(
+        f"/api/blueprints/{bp_ok['id']}",
+        json={
+            "items": [
+                {
+                    "learning_outcome_id": lo_a2["id"],
+                    "question_type": "mcq",
+                    "easy_count": 1,
+                    "medium_count": 0,
+                    "hard_count": 0,
+                }
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert update_res.status_code == 404
