@@ -142,12 +142,13 @@ def retrieve_relevant_chunks(
     topic: str | None = None,
     top_k: int = DEFAULT_TOP_K,
     extra_keywords: list[str] | None = None,
+    user_id: int,
 ) -> dict:
     document = get_document(db, document_id)
     learning_outcome = get_learning_outcome(db, learning_outcome_id)
     top_k = min(max(top_k, 1), MAX_TOP_K)
 
-    _validate_inputs(document, learning_outcome)
+    _validate_inputs(document, learning_outcome, user_id)
     chunks = list_document_chunks(db, document_id)
     if not chunks:
         raise RetrievalError("Document has no chunks")
@@ -180,15 +181,15 @@ def retrieve_relevant_chunks(
     }
 
 
-def _validate_inputs(document: Document | None, learning_outcome: LearningOutcome | None) -> None:
-    if document is None:
+def _validate_inputs(document: Document | None, learning_outcome: LearningOutcome | None, user_id: int) -> None:
+    if document is None or document.uploaded_by != user_id:
         raise RetrievalError("Document not found", status_code=404, error="Not found")
     if document.status != "processed":
         raise RetrievalError("Document must be processed before retrieval")
-    if learning_outcome is None:
+    if learning_outcome is None or learning_outcome.course.owner_id != user_id:
         raise RetrievalError("Learning outcome not found", status_code=404, error="Not found")
     if learning_outcome.course_id != document.course_id:
-        raise RetrievalError("Learning outcome does not belong to the document course")
+        raise RetrievalError("Learning outcome does not belong to the document course", status_code=404, error="Not found")
 
 
 def _build_query_context(

@@ -74,6 +74,7 @@ def generate_questions_from_chunks(
         learning_outcome_id=learning_outcome_id,
         topic=topic,
         top_k=requested_top_k,
+        user_id=user_id,
     )
 
     selected_chunk_ids = [chunk["chunk_id"] for chunk in retrieval["chunks"]]
@@ -289,6 +290,7 @@ def _retrieve_chunks_for_documents(
     learning_outcome_id: int,
     topic: str | None,
     top_k: int,
+    user_id: int,
 ) -> dict:
     merged_chunks = []
     for selected_document_id in document_ids:
@@ -299,6 +301,7 @@ def _retrieve_chunks_for_documents(
                 learning_outcome_id=learning_outcome_id,
                 topic=topic,
                 top_k=top_k,
+                user_id=user_id,
             )
         except RetrievalError as exc:
             raise AIGenerationError(exc.detail, status_code=exc.status_code, error=exc.error) from exc
