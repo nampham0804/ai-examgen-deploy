@@ -106,3 +106,90 @@ async def test_me_returns_current_user(client):
 
     assert response.status_code == 200
     assert response.json()["data"]["email"] == "teacher@example.com"
+
+
+@pytest.mark.asyncio
+async def test_login_inactive_user_rejected(client):
+    from src.repositories.database import SessionLocal
+    from src.models.user import User
+
+    await client.post(
+        "/api/auth/register",
+        json={
+            "email": "inactive@example.com",
+            "password": "Password123",
+            "full_name": "Inactive User",
+        },
+    )
+
+    with SessionLocal() as db:
+        user_row = db.query(User).filter(User.email == "inactive@example.com").first()
+        user_row.is_active = False
+        db.commit()
+
+    response = await client.post(
+        "/api/auth/login",
+        json={"email": "inactive@example.com", "password": "Password123"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "User account is inactive"
+
+
+
+@pytest.mark.asyncio
+async def test_login_invalid_hash_does_not_crash(client):
+    from src.repositories.database import SessionLocal
+    from src.models.user import User
+
+    await client.post(
+        "/api/auth/register",
+        json={
+            "email": "badhash@example.com",
+            "password": "Password123",
+            "full_name": "Bad Hash User",
+        },
+    )
+
+    with SessionLocal() as db:
+        user_row = db.query(User).filter(User.email == "badhash@example.com").first()
+        user_row.hashed_password = "invalid_password_hash_format"
+        db.commit()
+
+    response = await client.post(
+        "/api/auth/login",
+        json={"email": "badhash@example.com", "password": "Password123"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid email or password"
+
+
+def test_init_db_production_no_seed():
+    import os
+    from src.config import get_settings
+    from src.repositories.database import init_db, SessionLocal
+    from src.models.user import User
+
+    # Temporarily set APP_ENV to production and clear settings cache
+    old_env = os.environ.get("APP_ENV")
+    os.environ["APP_ENV"] = "production"
+    get_settings.cache_clear()
+
+    # Clear user 1 if it was seeded
+    with SessionLocal() as db:
+        u = db.get(User, 1)
+        if u is not None:
+            db.delete(u)
+            db.commit()
+
+    try:
+        init_db()
+        with SessionLocal() as db:
+            assert db.get(User, 1) is None
+    finally:
+        # Restore environment and clear settings cache
+        if old_env:
+            os.environ["APP_ENV"] = old_env
+        else:
+            del os.environ["APP_ENV"]
+        get_settings.cache_clear()
+

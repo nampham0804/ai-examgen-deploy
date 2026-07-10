@@ -34,6 +34,10 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
+    settings = get_settings()
+    if settings.app_env not in {"development", "test"}:
+        return
+
     from src.models import user
     from src.security import hash_password
 
