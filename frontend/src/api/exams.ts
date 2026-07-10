@@ -1,9 +1,8 @@
 import { Exam, ExamCreatePayload, ExamResponse, ExamListResponse, ExamPreviewResponse, ExamPreviewQuestion } from '../types/exam';
 import { MOCK_EXAM_PREVIEW, MOCK_EXAMS } from '../mocks/exam';
 import { blueprintApi } from './blueprints';
+import { api } from './client';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
-const API_ROOT = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
 let mockExams: Exam[] = [...MOCK_EXAMS];
@@ -19,9 +18,8 @@ export const examApi = {
         });
       }, 500));
     }
-    const response = await fetch(`${API_ROOT}/exams?course_id=${courseId}`);
-    if (!response.ok) throw new Error('Failed to fetch exams');
-    return response.json();
+    const response = await api.get<ExamListResponse>(`/api/exams?course_id=${courseId}`);
+    return response.data;
   },
 
   async getExam(id: number): Promise<ExamResponse> {
@@ -35,9 +33,8 @@ export const examApi = {
         }
       }, 500));
     }
-    const response = await fetch(`${API_ROOT}/exams/${id}`);
-    if (!response.ok) throw new Error('Failed to fetch exam');
-    return response.json();
+    const response = await api.get<ExamResponse>(`/api/exams/${id}`);
+    return response.data;
   },
 
   async createExam(payload: ExamCreatePayload): Promise<ExamResponse> {
@@ -62,13 +59,8 @@ export const examApi = {
         });
       }, 800));
     }
-    const response = await fetch(`${API_ROOT}/exams`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) throw new Error('Failed to create exam');
-    return response.json();
+    const response = await api.post<ExamResponse>('/api/exams', payload);
+    return response.data;
   },
 
   async updateExam(id: number, payload: { title?: string; duration_minutes?: number; status?: string }): Promise<ExamResponse> {
@@ -82,13 +74,8 @@ export const examApi = {
         resolve({ data: mockExams[index], message: "Mock exam updated successfully" });
       }, 500));
     }
-    const response = await fetch(`${API_ROOT}/exams/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) throw new Error('Failed to update exam');
-    return response.json();
+    const response = await api.put<ExamResponse>(`/api/exams/${id}`, payload);
+    return response.data;
   },
 
   async generateExam(id: number): Promise<ExamResponse> {
@@ -120,11 +107,8 @@ export const examApi = {
         });
       }, 1000));
     }
-    const response = await fetch(`${API_ROOT}/exams/${id}/generate`, {
-      method: 'POST',
-    });
-    if (!response.ok) throw new Error('Failed to generate exam');
-    return response.json();
+    const response = await api.post<ExamResponse>(`/api/exams/${id}/generate`);
+    return response.data;
   },
 
   async getExamPreview(id: number): Promise<ExamPreviewResponse> {
@@ -175,9 +159,8 @@ export const examApi = {
       }, 500));
     }
     
-    const response = await fetch(`${API_ROOT}/exams/${id}/preview`);
-    if (!response.ok) throw new Error('Failed to fetch exam preview');
-    return response.json();
+    const response = await api.get<ExamPreviewResponse>(`/api/exams/${id}/preview`);
+    return response.data;
   },
 
   async swapQuestion(examId: number, questionId: number): Promise<{ data: { new_question_id: number; new_question: ExamPreviewQuestion }, message: string }> {
@@ -204,16 +187,8 @@ export const examApi = {
       }, 600));
     }
     
-    // In a real app, the backend just returns the new question ID or the new question data
-    const response = await fetch(`${API_ROOT}/exams/${examId}/questions/${questionId}/swap`, {
-      method: 'PUT'
-    });
-    if (!response.ok) throw new Error('Failed to swap question');
-    const result = await response.json();
-    
-    // Re-fetch preview to get the full question object is an option, 
-    // or let the backend return the new object. Since our backend only returns ID, we simulate a refetch.
-    return result; // We will adapt frontend to refetch if needed
+    const response = await api.put<{ data: { new_question_id: number; new_question: ExamPreviewQuestion }, message: string }>(`/api/exams/${examId}/questions/${questionId}/swap`);
+    return response.data;
   },
 
   async exportExam(id: number, format: string = 'gift'): Promise<Blob> {
@@ -222,9 +197,10 @@ export const examApi = {
         resolve(new Blob(['Mock file content'], { type: 'text/plain' }));
       }, 800));
     }
-    const response = await fetch(`${API_ROOT}/exports/${format}?exam_id=${id}`);
-    if (!response.ok) throw new Error(`Failed to export exam to ${format}`);
-    return response.blob();
+    const response = await api.get<Blob>(`/api/exports/${format}?exam_id=${id}`, {
+      responseType: 'blob'
+    });
+    return response.data;
   },
 
   async getAllExams(): Promise<ExamListResponse> {
@@ -236,9 +212,8 @@ export const examApi = {
         });
       }, 500));
     }
-    const response = await fetch(`${API_ROOT}/exams`);
-    if (!response.ok) throw new Error('Failed to fetch all exams');
-    return response.json();
+    const response = await api.get<ExamListResponse>('/api/exams');
+    return response.data;
   },
 
   async deleteExam(id: number): Promise<{ message: string }> {
@@ -250,9 +225,8 @@ export const examApi = {
         resolve({ message: "Mock exam deleted successfully" });
       }, 500));
     }
-    const response = await fetch(`${API_ROOT}/exams/${id}`, { method: 'DELETE' });
-    if (!response.ok) throw new Error('Failed to delete exam');
-    return response.json();
+    const response = await api.delete<{ message: string }>(`/api/exams/${id}`);
+    return response.data;
   },
 
   async reorderExam(id: number, items: { id: number, order_index: number }[]): Promise<any> {
@@ -261,12 +235,8 @@ export const examApi = {
         resolve({ message: "Mock exam reordered successfully" });
       }, 500));
     }
-    const response = await fetch(`${API_ROOT}/exams/${id}/reorder`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items }),
-    });
-    if (!response.ok) throw new Error('Failed to reorder exam');
-    return response.json();
+    const response = await api.put<any>(`/api/exams/${id}/reorder`, { items });
+    return response.data;
   }
 };
+

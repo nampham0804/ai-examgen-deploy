@@ -116,19 +116,40 @@ export default function ExamGenerator() {
   const [eligibility, setEligibility] = useState<ValidationResultData | null>(null);
   const [isCheckingEligibility, setIsCheckingEligibility] = useState(false);
 
+  // Save examConfig state to sessionStorage on change
+  useEffect(() => {
+    sessionStorage.setItem('exam_generator_state', JSON.stringify(examConfig));
+  }, [examConfig]);
+
   useEffect(() => {
     const fetchCourses = async () => {
       try {
         const fetchedCourses = await getCourses();
         setCourses(fetchedCourses);
+
+        const savedState = sessionStorage.getItem('exam_generator_state');
+        let restoredConfig = null;
+        if (savedState) {
+          try {
+            restoredConfig = JSON.parse(savedState);
+          } catch (e) {
+            console.error("Failed to parse saved exam generator state", e);
+          }
+        }
+
         if (fetchedCourses.length > 0) {
           const firstCourse = fetchedCourses[0];
           const today = new Date().toLocaleDateString('vi-VN');
-          setExamConfig(prev => ({
-            ...prev,
-            courseId: firstCourse.id,
-            title: prev.title || `Đề thi - ${firstCourse.code} - ${today}`,
-          }));
+
+          if (restoredConfig && fetchedCourses.some(c => c.id === restoredConfig.courseId)) {
+            setExamConfig(restoredConfig);
+          } else {
+            setExamConfig(prev => ({
+              ...prev,
+              courseId: firstCourse.id,
+              title: prev.title || `Đề thi - ${firstCourse.code} - ${today}`,
+            }));
+          }
         }
       } catch (e) {
         console.error("Failed to load courses", e);
@@ -136,6 +157,7 @@ export default function ExamGenerator() {
     };
     fetchCourses();
   }, []);
+
 
   const filteredCourses = useMemo(() => {
     return courses.filter(c =>

@@ -77,5 +77,6 @@ def reorder_exam(exam_id: int, request: ExamReorderRequest, db: Session = Depend
 @router.delete("/{exam_id}")
 def delete_exam(exam_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     service = ExamService(db)
-    result = service.delete_exam(exam_id, current_user.id)
-    return result
+    service.delete_exam(exam_id, current_user.id)
+    return {"data": {}, "message": "Exam deleted successfully"}
+

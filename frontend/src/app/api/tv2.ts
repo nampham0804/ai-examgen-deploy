@@ -202,7 +202,15 @@ export async function listQuestions(params: {
 }
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_ROOT}${path}`, init);
+  const token = localStorage.getItem('access_token');
+  const headers = {
+    ...(init?.headers || {}),
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+  };
+  const response = await fetch(`${API_ROOT}${path}`, {
+    ...init,
+    headers,
+  });
   const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | ApiError | null;
   if (!response.ok) {
     const apiError = payload as ApiError | null;
