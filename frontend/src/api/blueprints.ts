@@ -1,9 +1,8 @@
 import { BlueprintCreatePayload, BlueprintUpdatePayload, BlueprintResponse, BlueprintListResponse, Blueprint, ValidationResultResponse, ValidationDetail } from '../types/exam';
 import { MOCK_BLUEPRINTS } from '../mocks/exam';
 import { mockQuestions } from '../mocks/questions';
+import { api } from './client';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
-const API_ROOT = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
 // In-memory mock store for session persistence
@@ -20,9 +19,8 @@ export const blueprintApi = {
         });
       }, 500));
     }
-    const response = await fetch(`${API_ROOT}/blueprints?course_id=${courseId}`);
-    if (!response.ok) throw new Error('Failed to fetch blueprints');
-    return response.json();
+    const response = await api.get<BlueprintListResponse>(`/api/blueprints?course_id=${courseId}`);
+    return response.data;
   },
 
   async getBlueprint(id: number): Promise<BlueprintResponse> {
@@ -36,9 +34,8 @@ export const blueprintApi = {
         }
       }, 500));
     }
-    const response = await fetch(`${API_ROOT}/blueprints/${id}`);
-    if (!response.ok) throw new Error('Failed to fetch blueprint');
-    return response.json();
+    const response = await api.get<BlueprintResponse>(`/api/blueprints/${id}`);
+    return response.data;
   },
 
   async createBlueprint(payload: BlueprintCreatePayload): Promise<BlueprintResponse> {
@@ -65,13 +62,8 @@ export const blueprintApi = {
         });
       }, 800));
     }
-    const response = await fetch(`${API_ROOT}/blueprints`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) throw new Error('Failed to create blueprint');
-    return response.json();
+    const response = await api.post<BlueprintResponse>('/api/blueprints', payload);
+    return response.data;
   },
 
   async updateBlueprint(id: number, payload: BlueprintUpdatePayload): Promise<BlueprintResponse> {
@@ -104,13 +96,8 @@ export const blueprintApi = {
         });
       }, 800));
     }
-    const response = await fetch(`${API_ROOT}/blueprints/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) throw new Error('Failed to update blueprint');
-    return response.json();
+    const response = await api.put<BlueprintResponse>(`/api/blueprints/${id}`, payload);
+    return response.data;
   },
 
   async deleteBlueprint(id: number): Promise<{ message: string }> {
@@ -122,11 +109,8 @@ export const blueprintApi = {
         resolve({ message: "Mock blueprint deleted successfully" });
       }, 500));
     }
-    const response = await fetch(`${API_ROOT}/blueprints/${id}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) throw new Error('Failed to delete blueprint');
-    return response.json();
+    const response = await api.delete<{ message: string }>(`/api/blueprints/${id}`);
+    return response.data;
   },
 
   async validateBlueprint(id: number): Promise<ValidationResultResponse> {
@@ -185,19 +169,16 @@ export const blueprintApi = {
         });
       }, 500));
     }
-    const response = await fetch(`${API_ROOT}/blueprints/${id}/validate`, {
-      method: 'POST',
-    });
-    if (!response.ok) throw new Error('Failed to validate blueprint');
-    return response.json();
+    const response = await api.post<ValidationResultResponse>(`/api/blueprints/${id}/validate`);
+    return response.data;
   },
 
   async checkEligibility(id: number): Promise<ValidationResultResponse> {
     if (USE_MOCK) {
       return this.validateBlueprint(id); // For mock, it's roughly the same
     }
-    const response = await fetch(`${API_ROOT}/blueprints/${id}/eligibility`);
-    if (!response.ok) throw new Error('Failed to check blueprint eligibility');
-    return response.json();
+    const response = await api.get<ValidationResultResponse>(`/api/blueprints/${id}/eligibility`);
+    return response.data;
   }
 };
+

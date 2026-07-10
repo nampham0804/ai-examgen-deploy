@@ -39,8 +39,8 @@ export interface DashboardResponse {
   message: string;
 }
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
-const API_ROOT = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
+import { api } from './client';
+
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
 export const analyticsApi = {
@@ -60,8 +60,8 @@ export const analyticsApi = {
         });
       }, 500));
     }
-    const response = await fetch(`${API_ROOT}/analytics/dashboard`);
-    if (!response.ok) throw new Error('Failed to fetch dashboard stats');
-    return response.json();
+    const response = await api.get<DashboardResponse>('/api/analytics/dashboard');
+    return response.data;
   }
 };
+

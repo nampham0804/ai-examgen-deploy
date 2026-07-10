@@ -19,7 +19,7 @@ def register_user(db: Session, payload: UserRegister):
 
 def login_user(db: Session, payload: UserLogin):
     user = user_repository.get_user_by_email(db, payload.email)
-    if user is None or not verify_password(payload.password, user.hashed_password):
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "Unauthorized", "detail": "Invalid email or password"},
@@ -29,6 +29,17 @@ def login_user(db: Session, payload: UserLogin):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"error": "Forbidden", "detail": "User account is inactive"},
+        )
+
+    try:
+        password_ok = verify_password(payload.password, user.hashed_password)
+    except Exception:
+        password_ok = False
+
+    if not password_ok:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "Unauthorized", "detail": "Invalid email or password"},
         )
 
     return {

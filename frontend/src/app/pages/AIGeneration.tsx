@@ -92,6 +92,57 @@ export default function AIGeneration() {
     questions: false,
   });
 
+  // Load saved state on mount (non-fetched variables)
+  useEffect(() => {
+    const savedState = sessionStorage.getItem('ai_generation_state');
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        if (parsed.topic) setTopic(parsed.topic);
+        if (parsed.questionType) setQuestionType(parsed.questionType);
+        if (parsed.difficulty) setDifficulty(parsed.difficulty);
+        if (parsed.numQuestions) setNumQuestions(parsed.numQuestions);
+        if (parsed.topK) setTopK(parsed.topK);
+        if (parsed.activeDocument) setActiveDocument(parsed.activeDocument);
+        if (parsed.selectedDocuments) setSelectedDocuments(parsed.selectedDocuments);
+        if (parsed.generatedQuestions) setGeneratedQuestions(parsed.generatedQuestions);
+        if (parsed.pendingQuestions) setPendingQuestions(parsed.pendingQuestions);
+      } catch (e) {
+        console.error('Failed to parse saved AI generation state', e);
+      }
+    }
+  }, []);
+
+  // Save state on change
+  useEffect(() => {
+    const stateToSave = {
+      selectedCourseId,
+      selectedLearningOutcomeId,
+      topic,
+      questionType,
+      difficulty,
+      numQuestions,
+      topK,
+      activeDocument,
+      selectedDocuments,
+      generatedQuestions,
+      pendingQuestions,
+    };
+    sessionStorage.setItem('ai_generation_state', JSON.stringify(stateToSave));
+  }, [
+    selectedCourseId,
+    selectedLearningOutcomeId,
+    topic,
+    questionType,
+    difficulty,
+    numQuestions,
+    topK,
+    activeDocument,
+    selectedDocuments,
+    generatedQuestions,
+    pendingQuestions,
+  ]);
+
   useEffect(() => {
     let isMounted = true;
     setLoading((prev) => ({ ...prev, courses: true }));
@@ -99,7 +150,26 @@ export default function AIGeneration() {
       .then((data) => {
         if (!isMounted) return;
         setCourses(data);
-        if (data.length > 0) setSelectedCourseId(String(data[0].id));
+
+        // Restore course ID if possible
+        const savedState = sessionStorage.getItem('ai_generation_state');
+        let restoredCourseId = '';
+        if (savedState) {
+          try {
+            const parsed = JSON.parse(savedState);
+            if (parsed.selectedCourseId && data.some(c => String(c.id) === parsed.selectedCourseId)) {
+              restoredCourseId = parsed.selectedCourseId;
+            }
+          } catch (e) {
+            console.error('Failed to parse saved course ID', e);
+          }
+        }
+
+        if (restoredCourseId) {
+          setSelectedCourseId(restoredCourseId);
+        } else if (data.length > 0) {
+          setSelectedCourseId(String(data[0].id));
+        }
       })
       .catch((error) => setErrorMessage(error.message))
       .finally(() => {
@@ -125,7 +195,26 @@ export default function AIGeneration() {
       .then((data) => {
         if (!isMounted) return;
         setLearningOutcomes(data);
-        if (data.length > 0) setSelectedLearningOutcomeId(String(data[0].id));
+
+        // Restore learning outcome ID if possible
+        const savedState = sessionStorage.getItem('ai_generation_state');
+        let restoredLOId = '';
+        if (savedState) {
+          try {
+            const parsed = JSON.parse(savedState);
+            if (parsed.selectedLearningOutcomeId && data.some(lo => String(lo.id) === parsed.selectedLearningOutcomeId)) {
+              restoredLOId = parsed.selectedLearningOutcomeId;
+            }
+          } catch (e) {
+            console.error('Failed to parse saved learning outcome ID', e);
+          }
+        }
+
+        if (restoredLOId) {
+          setSelectedLearningOutcomeId(restoredLOId);
+        } else if (data.length > 0) {
+          setSelectedLearningOutcomeId(String(data[0].id));
+        }
       })
       .catch((error) => setErrorMessage(error.message))
       .finally(() => {
